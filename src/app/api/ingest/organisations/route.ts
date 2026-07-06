@@ -109,6 +109,9 @@ export async function POST(req: NextRequest) {
     team_page: organisation.team_page ?? null,
     annual_report: organisation.annual_report ?? null,
     impact_report: organisation.impact_report ?? null,
+    linkedin: organisation.linkedin ?? null,
+    beneficiaries: organisation.beneficiaries ?? null,
+    workers: organisation.workers ?? null,
     ...(organisation.date_spotted
       ? { date_spotted: organisation.date_spotted }
       : {}),
@@ -139,6 +142,7 @@ export async function POST(req: NextRequest) {
       organisation_id: organisationId,
       location_name: loc.location_name,
       phone_number: loc.phone_number ?? null,
+      availability: loc.availability ?? null,
     });
   }
 
@@ -160,6 +164,7 @@ export async function POST(req: NextRequest) {
       department_id,
       seniority_id,
       full_name: person.full_name,
+      job_title: person.job_title ?? null,
       email: person.email ?? null,
       direct_dial: person.direct_dial ?? null,
       linkedin: person.linkedin ?? null,

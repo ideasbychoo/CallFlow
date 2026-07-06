@@ -324,6 +324,7 @@ export default function OrganisationCard({
                               organisation_id: org.id,
                               location_name: loc.location_name,
                               phone_number: v,
+                              availability: loc.availability,
                             }).then(onChanged)
                           }
                           placeholder="Phone number"
@@ -338,6 +339,20 @@ export default function OrganisationCard({
                           ✕
                         </button>
                       </div>
+                      <EditableText
+                        value={loc.availability}
+                        onSave={(v) =>
+                          upsertOfficeLocation({
+                            id: loc.id,
+                            organisation_id: org.id,
+                            location_name: loc.location_name,
+                            phone_number: loc.phone_number,
+                            availability: v,
+                          }).then(onChanged)
+                        }
+                        placeholder="e.g. Mon–Fri 9am–1pm"
+                        className="mt-1 w-full rounded border border-transparent bg-transparent text-xs text-slate-500 hover:border-slate-200 focus:border-slate-400 focus:bg-white focus:outline-none"
+                      />
                     </div>
                   ))}
                 </div>
@@ -347,6 +362,11 @@ export default function OrganisationCard({
                 label="Website"
                 value={org.website}
                 onSave={(v) => save({ website: v })}
+              />
+              <LinkField
+                label="Organisation LinkedIn"
+                value={org.linkedin}
+                onSave={(v) => save({ linkedin: v })}
               />
               <LinkField
                 label="Team page"
@@ -363,6 +383,31 @@ export default function OrganisationCard({
                 value={org.impact_report}
                 onSave={(v) => save({ impact_report: v })}
               />
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <div className="font-medium text-slate-700">Beneficiaries</div>
+                  <EditableText
+                    value={org.beneficiaries?.toString() ?? ""}
+                    onSave={(v) =>
+                      save({ beneficiaries: v.trim() ? Number(v) : null })
+                    }
+                    placeholder="e.g. 5000"
+                    className="w-full rounded border border-transparent bg-transparent text-xs hover:border-slate-200 focus:border-slate-400 focus:bg-white focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <div className="font-medium text-slate-700">Workers</div>
+                  <EditableText
+                    value={org.workers?.toString() ?? ""}
+                    onSave={(v) =>
+                      save({ workers: v.trim() ? Number(v) : null })
+                    }
+                    placeholder="staff/volunteers"
+                    className="w-full rounded border border-transparent bg-transparent text-xs hover:border-slate-200 focus:border-slate-400 focus:bg-white focus:outline-none"
+                  />
+                </div>
+              </div>
 
               <div>
                 <div className="mb-1 font-medium text-slate-700">Notes</div>
@@ -445,6 +490,12 @@ function StaffPersonEditor({
         value={person.full_name}
         onSave={(v) => update({ full_name: v })}
         className="w-full rounded border border-transparent bg-transparent text-sm font-medium text-slate-800 hover:border-slate-200 focus:border-slate-400 focus:bg-white focus:outline-none"
+      />
+      <EditableText
+        value={person.job_title}
+        onSave={(v) => update({ job_title: v })}
+        placeholder="Job title"
+        className="w-full rounded border border-transparent bg-transparent text-xs italic text-slate-500 hover:border-slate-200 focus:border-slate-400 focus:bg-white focus:outline-none"
       />
       <div className="flex flex-wrap gap-x-2 text-xs">
         {person.email && (

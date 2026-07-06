@@ -45,6 +45,9 @@ create table organisations (
   team_page text,
   annual_report text,
   impact_report text,
+  linkedin text,
+  beneficiaries integer,
+  workers integer,
   status_id uuid references statuses(id) on delete set null,
   date_spotted date not null default current_date,
   call_attempts integer not null default 0,
@@ -58,6 +61,7 @@ create table office_locations (
   organisation_id uuid not null references organisations(id) on delete cascade,
   location_name text not null,
   phone_number text,
+  availability text,
   created_at timestamptz not null default now()
 );
 
@@ -67,6 +71,7 @@ create table staff (
   department_id uuid references departments(id) on delete set null,
   seniority_id uuid references seniority_levels(id) on delete set null,
   full_name text not null,
+  job_title text,
   email text,
   direct_dial text,
   linkedin text,

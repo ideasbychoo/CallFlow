@@ -27,6 +27,7 @@ export type OfficeLocation = {
   organisation_id: string;
   location_name: string;
   phone_number: string | null;
+  availability: string | null;
 };
 
 export type StaffMember = {
@@ -35,6 +36,7 @@ export type StaffMember = {
   department_id: string | null;
   seniority_id: string | null;
   full_name: string;
+  job_title: string | null;
   email: string | null;
   direct_dial: string | null;
   linkedin: string | null;
@@ -63,6 +65,9 @@ export type Organisation = {
   team_page: string | null;
   annual_report: string | null;
   impact_report: string | null;
+  linkedin: string | null;
+  beneficiaries: number | null;
+  workers: number | null;
   status_id: string | null;
   date_spotted: string;
   call_attempts: number;

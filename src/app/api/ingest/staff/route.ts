@@ -95,6 +95,7 @@ export async function POST(req: NextRequest) {
         department_id,
         seniority_id,
         full_name: person.full_name,
+        job_title: person.job_title ?? null,
         email: person.email ?? null,
         direct_dial: person.direct_dial ?? null,
         linkedin: person.linkedin ?? null,
