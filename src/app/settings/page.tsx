@@ -31,7 +31,9 @@ export default function SettingsPage() {
 
   return (
     <div className="mx-auto max-w-2xl px-8 py-8">
-      <h1 className="mb-6 text-3xl font-semibold text-slate-800">Settings</h1>
+      <h1 className="sticky top-0 z-10 -mx-8 mb-6 bg-slate-50 px-8 py-2 text-3xl font-semibold text-slate-800">
+        Settings
+      </h1>
 
       <SettingsList
         title="Statuses"
@@ -56,6 +58,8 @@ export default function SettingsPage() {
         table="categories"
         items={categories}
         onChanged={load}
+        sortAlphabetically
+        showColor
       />
     </div>
   );

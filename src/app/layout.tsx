@@ -1,4 +1,8 @@
 import type { Metadata } from "next";
+import "@fontsource/quicksand/400.css";
+import "@fontsource/quicksand/500.css";
+import "@fontsource/quicksand/600.css";
+import "@fontsource/quicksand/700.css";
 import "./globals.css";
 import AppShell from "@/components/AppShell";
 import { createClient } from "@/lib/supabase/server";
@@ -21,7 +25,7 @@ export default async function RootLayout({
 
   return (
     <html lang="en">
-      <body className="antialiased">
+      <body className="antialiased font-sans">
         <AppShell statuses={statuses ?? []}>{children}</AppShell>
       </body>
     </html>

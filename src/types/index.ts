@@ -20,6 +20,7 @@ export type Category = {
   id: string;
   name: string;
   sort_order: number;
+  color: string | null;
 };
 
 export type OfficeLocation = {

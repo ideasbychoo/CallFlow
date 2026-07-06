@@ -29,7 +29,7 @@ export function EditableText({
 
   const baseClass =
     className ??
-    "w-full rounded border border-transparent bg-transparent px-1 py-0.5 text-sm hover:border-slate-200 focus:border-slate-400 focus:bg-white focus:outline-none";
+    "w-full rounded border border-transparent bg-transparent px-1 py-0.5 text-sm text-slate-800 hover:border-slate-200 focus:border-slate-400 focus:bg-white focus:outline-none";
 
   if (multiline) {
     return (

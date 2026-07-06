@@ -38,20 +38,20 @@ export default function MultiSelectFilter({
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm hover:border-slate-400"
+        className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:border-slate-400"
       >
         {label}
         {selected.length > 0 ? ` (${selected.length})` : ""} ▾
       </button>
       {open && (
-        <div className="absolute z-10 mt-1 max-h-64 w-56 overflow-y-auto rounded border border-slate-200 bg-white p-2 shadow-lg">
+        <div className="absolute z-20 mt-1 max-h-64 w-56 overflow-y-auto rounded border border-slate-200 bg-white p-2 shadow-lg">
           {options.length === 0 && (
             <p className="p-1 text-xs text-slate-400">No options yet</p>
           )}
           {options.map((opt) => (
             <label
               key={opt.value}
-              className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-sm hover:bg-slate-50"
+              className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-sm text-slate-700 hover:bg-slate-50"
             >
               <input
                 type="checkbox"

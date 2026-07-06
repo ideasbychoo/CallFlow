@@ -6,26 +6,33 @@ import {
   addSettingsItem,
   renameSettingsItem,
   deleteSettingsItem,
+  updateCategoryColor,
   type SettingsTable,
 } from "@/lib/data";
 
-type Item = { id: string; name: string; sort_order: number };
+type Item = { id: string; name: string; sort_order: number; color?: string | null };
 
 export default function SettingsList({
   title,
   table,
   items,
   onChanged,
+  sortAlphabetically = false,
+  showColor = false,
 }: {
   title: string;
   table: SettingsTable;
   items: Item[];
   onChanged: () => void;
+  sortAlphabetically?: boolean;
+  showColor?: boolean;
 }) {
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
 
-  const sorted = [...items].sort((a, b) => a.sort_order - b.sort_order);
+  const sorted = sortAlphabetically
+    ? [...items].sort((a, b) => a.name.localeCompare(b.name))
+    : [...items].sort((a, b) => a.sort_order - b.sort_order);
 
   async function handleAdd() {
     if (!newName.trim()) {
@@ -33,7 +40,7 @@ export default function SettingsList({
       return;
     }
     const nextOrder =
-      sorted.length > 0 ? Math.max(...sorted.map((i) => i.sort_order)) + 1 : 1;
+      items.length > 0 ? Math.max(...items.map((i) => i.sort_order)) + 1 : 1;
     await addSettingsItem(table, newName.trim(), nextOrder);
     setNewName("");
     setAdding(false);
@@ -46,10 +53,21 @@ export default function SettingsList({
       <div className="divide-y divide-slate-100 rounded border border-slate-200 bg-white">
         {sorted.map((item) => (
           <div key={item.id} className="flex items-center gap-2 px-3 py-2">
+            {showColor && (
+              <input
+                type="color"
+                value={item.color ?? "#94a3b8"}
+                onChange={(e) =>
+                  updateCategoryColor(item.id, e.target.value).then(onChanged)
+                }
+                className="h-6 w-6 shrink-0 cursor-pointer rounded border border-slate-200"
+                title="Category colour"
+              />
+            )}
             <EditableText
               value={item.name}
               onSave={(v) => renameSettingsItem(table, item.id, v).then(onChanged)}
-              className="flex-1 rounded border border-transparent bg-transparent text-sm hover:border-slate-200 focus:border-slate-400 focus:bg-white focus:outline-none"
+              className="flex-1 rounded border border-transparent bg-transparent text-sm text-slate-800 hover:border-slate-200 focus:border-slate-400 focus:bg-white focus:outline-none"
             />
             <button
               onClick={() => {
@@ -76,7 +94,7 @@ export default function SettingsList({
             onChange={(e) => setNewName(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleAdd()}
             onBlur={handleAdd}
-            className="rounded border border-slate-300 px-2 py-1 text-sm focus:border-slate-500 focus:outline-none"
+            className="rounded border border-slate-300 px-2 py-1 text-sm text-slate-800 focus:border-slate-500 focus:outline-none"
             placeholder="Name"
           />
         </div>

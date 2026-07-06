@@ -19,11 +19,13 @@ export default function AppShell({
   }
 
   return (
-    <div className="flex">
+    <div className="flex h-screen overflow-hidden">
       <Suspense fallback={<div className="w-64 shrink-0" />}>
         <Sidebar statuses={statuses} />
       </Suspense>
-      <main className="min-h-screen flex-1 bg-slate-50">{children}</main>
+      <main id="main-scroll" className="h-screen flex-1 overflow-y-auto bg-slate-50">
+        {children}
+      </main>
     </div>
   );
 }

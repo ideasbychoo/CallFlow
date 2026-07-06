@@ -4,6 +4,8 @@ import { useState } from "react";
 import { format, formatDistanceToNow } from "date-fns";
 import { EditableText } from "./EditableField";
 import StatusDropdown from "./StatusDropdown";
+import CategoryChip from "./CategoryChip";
+import CountryFlag from "./CountryFlag";
 import type {
   Organisation,
   Status,
@@ -84,8 +86,18 @@ export default function OrganisationCard({
     onChanged();
   }
 
+  const sortedCategories = [...categories].sort((a, b) => a.name.localeCompare(b.name));
+  const selectedCategory = categories.find((c) => c.id === org.category_id) ?? null;
+
   return (
-    <div className="mb-4 rounded-xl border border-slate-200 bg-white shadow-sm">
+    <div
+      className="mb-4 rounded-xl border border-slate-200 bg-white shadow-sm"
+      style={
+        selectedCategory?.color
+          ? { borderLeft: `4px solid ${selectedCategory.color}` }
+          : undefined
+      }
+    >
       {/* Header row - always visible */}
       <div className="flex items-start justify-between gap-4 p-5">
         <button
@@ -102,14 +114,17 @@ export default function OrganisationCard({
             onSave={(v) => save({ name: v })}
             className="w-full rounded border border-transparent bg-transparent text-xl font-semibold text-slate-800 hover:border-slate-200 focus:border-slate-400 focus:bg-white focus:outline-none"
           />
-          <div className="mt-1 flex flex-wrap items-center gap-1 text-sm text-slate-600">
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-600">
+            {selectedCategory && (
+              <CategoryChip name={selectedCategory.name} color={selectedCategory.color} />
+            )}
             <select
               value={org.category_id ?? ""}
               onChange={(e) => save({ category_id: e.target.value || null })}
-              className="rounded border border-transparent bg-transparent text-sm hover:border-slate-200 focus:border-slate-400 focus:outline-none"
+              className="rounded border border-transparent bg-transparent text-sm text-slate-600 hover:border-slate-200 focus:border-slate-400 focus:outline-none"
             >
               <option value="">No category</option>
-              {categories.map((c) => (
+              {sortedCategories.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
                 </option>
@@ -142,7 +157,8 @@ export default function OrganisationCard({
             onChange={(statusId) => save({ status_id: statusId })}
           />
           <div className="text-right text-xs leading-relaxed text-slate-500">
-            <div>
+            <div className="flex items-center justify-end gap-1">
+              <CountryFlag country={org.country} />
               <EditableText
                 value={org.country}
                 onSave={(v) => save({ country: v })}

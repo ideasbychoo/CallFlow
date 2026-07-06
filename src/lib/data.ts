@@ -136,6 +136,12 @@ export async function deleteSettingsItem(table: SettingsTable, id: string) {
   if (error) throw error;
 }
 
+export async function updateCategoryColor(id: string, color: string) {
+  const supabase = createClient();
+  const { error } = await supabase.from("categories").update({ color }).eq("id", id);
+  if (error) throw error;
+}
+
 export function googleVoiceCallUrl(phoneNumber: string): string {
   const cleaned = phoneNumber.trim();
   return `https://voice.google.com/u/0/calls?a=nc,${encodeURIComponent(cleaned)}`;

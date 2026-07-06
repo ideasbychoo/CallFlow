@@ -33,6 +33,8 @@ function CallListInner() {
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string[]>([]);
   const [countryFilter, setCountryFilter] = useState<string[]>([]);
+  const [staffMin, setStaffMin] = useState<string>("1");
+  const [staffMax, setStaffMax] = useState<string>("");
   const [sortField, setSortField] = useState<SortField>("date_spotted");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
@@ -60,6 +62,14 @@ function CallListInner() {
     return Array.from(set).sort();
   }, [orgs]);
 
+  const sortedCategoryOptions = useMemo(
+    () =>
+      [...categories]
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((c) => ({ value: c.id, label: c.name })),
+    [categories]
+  );
+
   const filtered = useMemo(() => {
     let result = orgs;
 
@@ -73,6 +83,16 @@ function CallListInner() {
     }
     if (countryFilter.length > 0) {
       result = result.filter((o) => o.country && countryFilter.includes(o.country));
+    }
+    const min = staffMin.trim() ? parseInt(staffMin, 10) : null;
+    const max = staffMax.trim() ? parseInt(staffMax, 10) : null;
+    if (min !== null || max !== null) {
+      result = result.filter((o) => {
+        const count = (o.staff ?? []).length;
+        if (min !== null && count < min) return false;
+        if (max !== null && count > max) return false;
+        return true;
+      });
     }
     if (search.trim()) {
       const q = search.trim().toLowerCase();
@@ -103,7 +123,7 @@ function CallListInner() {
     });
 
     return sorted;
-  }, [orgs, statusFilter, categoryFilter, countryFilter, search, sortField, sortDirection]);
+  }, [orgs, statusFilter, categoryFilter, countryFilter, staffMin, staffMax, search, sortField, sortDirection]);
 
   async function handleAddOrganisation() {
     const defaultStatus = statuses.find((s) => s.sort_order === 1);
@@ -119,63 +139,85 @@ function CallListInner() {
     : null;
 
   return (
-    <div className="mx-auto max-w-6xl px-8 py-8">
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-3xl font-semibold text-slate-800">
-          Call List{activeStatusName ? ` · ${activeStatusName}` : ""}
-        </h1>
-        <button
-          onClick={handleAddOrganisation}
-          className="rounded bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
-        >
-          + Add organisation
-        </button>
-      </div>
+    <div className="mx-auto max-w-6xl px-8 pb-8">
+      <div className="sticky top-0 z-10 -mx-8 bg-slate-50 px-8 pb-4 pt-8">
+        <div className="mb-6 flex items-center justify-between">
+          <h1 className="text-3xl font-semibold text-slate-800">
+            Call List{activeStatusName ? ` · ${activeStatusName}` : ""}
+          </h1>
+          <button
+            onClick={handleAddOrganisation}
+            className="rounded bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
+          >
+            + Add organisation
+          </button>
+        </div>
 
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <input
-          type="text"
-          placeholder="Search: find an org, person or note"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="flex-1 min-w-[240px] rounded border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
-        />
-        <select
-          value={`${sortField}:${sortDirection}`}
-          onChange={(e) => {
-            const [field, dir] = e.target.value.split(":");
-            setSortField(field as SortField);
-            setSortDirection(dir as SortDirection);
-          }}
-          className="rounded border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
-        >
-          <option value="date_spotted:desc">Date spotted (newest)</option>
-          <option value="date_spotted:asc">Date spotted (oldest)</option>
-          <option value="last_interaction_at:desc">
-            Most recent interaction (newest)
-          </option>
-          <option value="last_interaction_at:asc">
-            Most recent interaction (oldest)
-          </option>
-          <option value="name:asc">Organisation name (A–Z)</option>
-          <option value="name:desc">Organisation name (Z–A)</option>
-        </select>
-      </div>
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <input
+            type="text"
+            placeholder="Search: find an org, person or note"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="flex-1 min-w-[240px] rounded border border-slate-300 px-3 py-2 text-sm text-slate-800 focus:border-slate-500 focus:outline-none"
+          />
+          <select
+            value={`${sortField}:${sortDirection}`}
+            onChange={(e) => {
+              const [field, dir] = e.target.value.split(":");
+              setSortField(field as SortField);
+              setSortDirection(dir as SortDirection);
+            }}
+            className="rounded border border-slate-300 px-3 py-2 text-sm text-slate-800 focus:border-slate-500 focus:outline-none"
+          >
+            <option value="date_spotted:desc">Date spotted (newest)</option>
+            <option value="date_spotted:asc">Date spotted (oldest)</option>
+            <option value="last_interaction_at:desc">
+              Most recent interaction (newest)
+            </option>
+            <option value="last_interaction_at:asc">
+              Most recent interaction (oldest)
+            </option>
+            <option value="name:asc">Organisation name (A–Z)</option>
+            <option value="name:desc">Organisation name (Z–A)</option>
+          </select>
+        </div>
 
-      <div className="mb-6 flex flex-wrap items-center gap-3">
-        <span className="text-sm text-slate-500">Filters:</span>
-        <MultiSelectFilter
-          label="Category"
-          options={categories.map((c) => ({ value: c.id, label: c.name }))}
-          selected={categoryFilter}
-          onChange={setCategoryFilter}
-        />
-        <MultiSelectFilter
-          label="Country"
-          options={countryOptions.map((c) => ({ value: c, label: c }))}
-          selected={countryFilter}
-          onChange={setCountryFilter}
-        />
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-sm text-slate-500">Filters:</span>
+          <MultiSelectFilter
+            label="Category"
+            options={sortedCategoryOptions}
+            selected={categoryFilter}
+            onChange={setCategoryFilter}
+          />
+          <MultiSelectFilter
+            label="Country"
+            options={countryOptions.map((c) => ({ value: c, label: c }))}
+            selected={countryFilter}
+            onChange={setCountryFilter}
+          />
+          <div className="flex items-center gap-1.5 rounded border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700">
+            <span>Staff identified:</span>
+            <input
+              type="number"
+              min={0}
+              value={staffMin}
+              onChange={(e) => setStaffMin(e.target.value)}
+              placeholder="from"
+              className="w-14 rounded border border-slate-200 px-1 py-0.5 text-slate-800 focus:border-slate-400 focus:outline-none"
+            />
+            <span className="text-slate-400">–</span>
+            <input
+              type="number"
+              min={0}
+              value={staffMax}
+              onChange={(e) => setStaffMax(e.target.value)}
+              placeholder="to"
+              className="w-14 rounded border border-slate-200 px-1 py-0.5 text-slate-800 focus:border-slate-400 focus:outline-none"
+            />
+          </div>
+        </div>
       </div>
 
       {loading ? (

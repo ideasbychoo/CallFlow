@@ -2,25 +2,28 @@
 
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #1e293b;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: "Quicksand", ui-sans-serif, system-ui, sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+/* The app is light-themed only for now: inputs, cards, and dropdowns all
+   assume a light background, so we intentionally do NOT flip --foreground
+   for prefers-color-scheme: dark. Doing so previously caused near-invisible
+   (near-white-on-white) text in any element relying on inherited color
+   rather than an explicit Tailwind text-color class. */
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+}
+
+input,
+textarea,
+select {
+  color: var(--foreground);
 }
