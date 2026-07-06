@@ -1,0 +1,208 @@
+-- CallFlow database schema
+-- Run this once in the Supabase SQL Editor (Project > SQL Editor > New query)
+
+-- ============ LOOKUP / SETTINGS TABLES ============
+
+create table statuses (
+  id uuid primary key default gen_random_uuid(),
+  name text not null unique,
+  sort_order integer not null,
+  created_at timestamptz not null default now()
+);
+
+create table departments (
+  id uuid primary key default gen_random_uuid(),
+  name text not null unique,
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now()
+);
+
+create table seniority_levels (
+  id uuid primary key default gen_random_uuid(),
+  name text not null unique,
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now()
+);
+
+create table categories (
+  id uuid primary key default gen_random_uuid(),
+  name text not null unique,
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now()
+);
+
+-- ============ CORE TABLES ============
+
+create table organisations (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  category_id uuid references categories(id) on delete set null,
+  country text,
+  similar_to_client text,
+  angle text,
+  notes text,
+  website text,
+  team_page text,
+  annual_report text,
+  impact_report text,
+  status_id uuid references statuses(id) on delete set null,
+  date_spotted date not null default current_date,
+  call_attempts integer not null default 0,
+  last_interaction_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table office_locations (
+  id uuid primary key default gen_random_uuid(),
+  organisation_id uuid not null references organisations(id) on delete cascade,
+  location_name text not null,
+  phone_number text,
+  created_at timestamptz not null default now()
+);
+
+create table staff (
+  id uuid primary key default gen_random_uuid(),
+  organisation_id uuid not null references organisations(id) on delete cascade,
+  department_id uuid references departments(id) on delete set null,
+  seniority_id uuid references seniority_levels(id) on delete set null,
+  full_name text not null,
+  email text,
+  direct_dial text,
+  linkedin text,
+  background_notes text,
+  availability_notes text,
+  conversation_notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table status_history (
+  id uuid primary key default gen_random_uuid(),
+  organisation_id uuid not null references organisations(id) on delete cascade,
+  status_id uuid references statuses(id) on delete set null,
+  changed_at timestamptz not null default now()
+);
+
+create index idx_organisations_status on organisations(status_id);
+create index idx_organisations_category on organisations(category_id);
+create index idx_office_locations_org on office_locations(organisation_id);
+create index idx_staff_org on staff(organisation_id);
+create index idx_status_history_org on status_history(organisation_id, changed_at desc);
+
+-- ============ SEED DATA: STATUSES (in brief's order) ============
+
+insert into statuses (name, sort_order) values
+  ('Not Contacted', 1),
+  ('Calling Now', 2),
+  ('Call Attempted: Dial tone', 3),
+  ('Call Attempted: Voicemail', 4),
+  ('Call Attempted: In Meeting', 5),
+  ('Call Attempted: Work from home', 6),
+  ('Email Requested', 7),
+  ('1st Email Sent', 8),
+  ('2nd Email (Followup) Sent', 9),
+  ('Meeting Scheduling in Progress', 10),
+  ('Meeting Booked', 11),
+  ('Deal Created', 12),
+  ('New Client Won', 13),
+  ('Try Us Later', 14),
+  ('Said No Thanks', 15);
+
+-- ============ SEED DATA: DEPARTMENTS ============
+
+insert into departments (name, sort_order) values
+  ('Impact / MERL', 1),
+  ('Operations', 2),
+  ('Programmes / Services', 3),
+  ('IT / CIO', 4),
+  ('CEO / MD / ED', 5);
+
+-- ============ SEED DATA: SENIORITY LEVELS ============
+
+insert into seniority_levels (name, sort_order) values
+  ('Head / Director', 1),
+  ('Manager', 2);
+
+-- ============ ROW LEVEL SECURITY ============
+-- The app's server-side API routes use the service_role key (bypasses RLS).
+-- The browser only ever uses the anon key through an authenticated session,
+-- so RLS below just requires a logged-in Supabase Auth user for any access.
+
+alter table statuses enable row level security;
+alter table departments enable row level security;
+alter table seniority_levels enable row level security;
+alter table categories enable row level security;
+alter table organisations enable row level security;
+alter table office_locations enable row level security;
+alter table staff enable row level security;
+alter table status_history enable row level security;
+
+create policy "Authenticated users can do everything - statuses" on statuses
+  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "Authenticated users can do everything - departments" on departments
+  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "Authenticated users can do everything - seniority_levels" on seniority_levels
+  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "Authenticated users can do everything - categories" on categories
+  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "Authenticated users can do everything - organisations" on organisations
+  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "Authenticated users can do everything - office_locations" on office_locations
+  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "Authenticated users can do everything - staff" on staff
+  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "Authenticated users can do everything - status_history" on status_history
+  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+
+-- ============ TRIGGER: auto-update updated_at ============
+
+create or replace function set_updated_at()
+returns trigger as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$ language plpgsql;
+
+create trigger organisations_set_updated_at
+  before update on organisations
+  for each row execute function set_updated_at();
+
+create trigger staff_set_updated_at
+  before update on staff
+  for each row execute function set_updated_at();
+
+-- ============ TRIGGER: status changes -> history + last_interaction_at + call_attempts ============
+-- Fires whenever an organisation's status_id changes (including on insert).
+-- Logs the change to status_history, stamps last_interaction_at, and increments
+-- call_attempts only when the new status name starts with "Call Attempted:".
+
+create or replace function handle_organisation_status_change()
+returns trigger as $$
+declare
+  new_status_name text;
+begin
+  if (tg_op = 'INSERT' and new.status_id is not null)
+     or (tg_op = 'UPDATE' and new.status_id is distinct from old.status_id) then
+
+    select name into new_status_name from statuses where id = new.status_id;
+
+    insert into status_history (organisation_id, status_id, changed_at)
+    values (new.id, new.status_id, now());
+
+    new.last_interaction_at = now();
+
+    if new_status_name like 'Call Attempted:%' then
+      new.call_attempts = coalesce(new.call_attempts, 0) + 1;
+    end if;
+  end if;
+
+  return new;
+end;
+$$ language plpgsql;
+
+create trigger organisations_status_change
+  before insert or update on organisations
+  for each row execute function handle_organisation_status_change();
+
