@@ -178,26 +178,29 @@ create trigger staff_set_updated_at
   before update on staff
   for each row execute function set_updated_at();
 
--- ============ TRIGGER: status changes -> history + last_interaction_at + call_attempts ============
--- Fires whenever an organisation's status_id changes (including on insert).
--- Logs the change to status_history, stamps last_interaction_at, and increments
--- call_attempts only when the new status name starts with "Call Attempted:".
+-- ============ TRIGGERS: status changes -> history + last_interaction_at + call_attempts ============
+-- Split into a BEFORE trigger (adjusts columns on the row being written) and an
+-- AFTER trigger (logs to status_history). The history insert MUST be an AFTER
+-- trigger: a BEFORE trigger fires before the row exists in `organisations`, so
+-- an insert into status_history at that point would fail its foreign key check.
+--
+-- "Loggable" means: an actual status change on UPDATE, or an INSERT whose
+-- initial status is anything other than the default 'Not Contacted' (so simply
+-- adding a fresh prospect doesn't get stamped with a fake "just now" interaction).
 
-create or replace function handle_organisation_status_change()
+create or replace function organisations_before_status_change()
 returns trigger as $$
 declare
   new_status_name text;
+  is_loggable boolean;
 begin
-  if (tg_op = 'INSERT' and new.status_id is not null)
-     or (tg_op = 'UPDATE' and new.status_id is distinct from old.status_id) then
+  select name into new_status_name from statuses where id = new.status_id;
 
-    select name into new_status_name from statuses where id = new.status_id;
+  is_loggable := (tg_op = 'UPDATE' and new.status_id is distinct from old.status_id)
+              or (tg_op = 'INSERT' and new.status_id is not null and coalesce(new_status_name, '') <> 'Not Contacted');
 
-    insert into status_history (organisation_id, status_id, changed_at)
-    values (new.id, new.status_id, now());
-
+  if is_loggable then
     new.last_interaction_at = now();
-
     if new_status_name like 'Call Attempted:%' then
       new.call_attempts = coalesce(new.call_attempts, 0) + 1;
     end if;
@@ -207,7 +210,31 @@ begin
 end;
 $$ language plpgsql;
 
-create trigger organisations_status_change
+create trigger organisations_before_status_change
   before insert or update on organisations
-  for each row execute function handle_organisation_status_change();
+  for each row execute function organisations_before_status_change();
+
+create or replace function organisations_after_status_change()
+returns trigger as $$
+declare
+  new_status_name text;
+  is_loggable boolean;
+begin
+  select name into new_status_name from statuses where id = new.status_id;
+
+  is_loggable := (tg_op = 'UPDATE' and new.status_id is distinct from old.status_id)
+              or (tg_op = 'INSERT' and new.status_id is not null and coalesce(new_status_name, '') <> 'Not Contacted');
+
+  if is_loggable then
+    insert into status_history (organisation_id, status_id, changed_at)
+    values (new.id, new.status_id, now());
+  end if;
+
+  return new;
+end;
+$$ language plpgsql;
+
+create trigger organisations_after_status_change
+  after insert or update on organisations
+  for each row execute function organisations_after_status_change();
 
