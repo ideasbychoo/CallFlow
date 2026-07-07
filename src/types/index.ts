@@ -23,6 +23,12 @@ export type Category = {
   color: string | null;
 };
 
+export type Country = {
+  id: string;
+  name: string;
+  sort_order: number;
+};
+
 export type OfficeLocation = {
   id: string;
   organisation_id: string;

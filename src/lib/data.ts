@@ -5,6 +5,8 @@ import type {
   Department,
   SeniorityLevel,
   Category,
+  Country,
+  StaffMember,
 } from "@/types";
 
 const ORG_SELECT = `
@@ -31,14 +33,16 @@ export async function fetchSettingsLists(): Promise<{
   departments: Department[];
   seniorityLevels: SeniorityLevel[];
   categories: Category[];
+  countries: Country[];
 }> {
   const supabase = createClient();
-  const [statuses, departments, seniorityLevels, categories] =
+  const [statuses, departments, seniorityLevels, categories, countries] =
     await Promise.all([
       supabase.from("statuses").select("*").order("sort_order"),
       supabase.from("departments").select("*").order("sort_order"),
       supabase.from("seniority_levels").select("*").order("sort_order"),
       supabase.from("categories").select("*").order("sort_order"),
+      supabase.from("countries").select("*").order("sort_order"),
     ]);
 
   return {
@@ -46,6 +50,7 @@ export async function fetchSettingsLists(): Promise<{
     departments: (departments.data ?? []) as Department[],
     seniorityLevels: (seniorityLevels.data ?? []) as SeniorityLevel[],
     categories: (categories.data ?? []) as Category[],
+    countries: (countries.data ?? []) as Country[],
   };
 }
 
@@ -77,6 +82,38 @@ export async function createOrganisation(
 export async function deleteOrganisation(id: string) {
   const supabase = createClient();
   const { error } = await supabase.from("organisations").delete().eq("id", id);
+  if (error) throw error;
+}
+
+export async function fetchAllStaff(): Promise<
+  (StaffMember & { organisation?: { id: string; name: string } | null })[]
+> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("staff")
+    .select("*, organisation:organisations(id, name)")
+    .order("full_name");
+  if (error) throw error;
+  return (data ?? []) as unknown as (StaffMember & {
+    organisation?: { id: string; name: string } | null;
+  })[];
+}
+
+export async function fetchAllOrganisationsBasic(): Promise<
+  { id: string; name: string }[]
+> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("organisations")
+    .select("id, name")
+    .order("name");
+  if (error) throw error;
+  return (data ?? []) as { id: string; name: string }[];
+}
+
+export async function updateStaffMember(id: string, fields: Record<string, unknown>) {
+  const supabase = createClient();
+  const { error } = await supabase.from("staff").update(fields).eq("id", id);
   if (error) throw error;
 }
 
@@ -112,7 +149,8 @@ export type SettingsTable =
   | "statuses"
   | "departments"
   | "seniority_levels"
-  | "categories";
+  | "categories"
+  | "countries";
 
 export async function addSettingsItem(table: SettingsTable, name: string, sort_order: number) {
   const supabase = createClient();

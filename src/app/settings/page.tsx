@@ -3,13 +3,14 @@
 import { useEffect, useState } from "react";
 import SettingsList from "@/components/SettingsList";
 import { fetchSettingsLists } from "@/lib/data";
-import type { Status, Department, SeniorityLevel, Category } from "@/types";
+import type { Status, Department, SeniorityLevel, Category, Country } from "@/types";
 
 export default function SettingsPage() {
   const [statuses, setStatuses] = useState<Status[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [seniorityLevels, setSeniorityLevels] = useState<SeniorityLevel[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [countries, setCountries] = useState<Country[]>([]);
   const [loading, setLoading] = useState(true);
 
   async function load() {
@@ -18,6 +19,7 @@ export default function SettingsPage() {
     setDepartments(settings.departments);
     setSeniorityLevels(settings.seniorityLevels);
     setCategories(settings.categories);
+    setCountries(settings.countries);
     setLoading(false);
   }
 
@@ -60,6 +62,13 @@ export default function SettingsPage() {
         onChanged={load}
         sortAlphabetically
         showColor
+      />
+      <SettingsList
+        title="Countries"
+        table="countries"
+        items={countries}
+        onChanged={load}
+        sortAlphabetically
       />
     </div>
   );

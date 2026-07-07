@@ -12,6 +12,7 @@ import type {
   Department,
   SeniorityLevel,
   Category,
+  Country,
   StaffMember,
 } from "@/types";
 import {
@@ -30,6 +31,7 @@ export default function OrganisationCard({
   departments,
   seniorityLevels,
   categories,
+  countries,
   defaultExpanded = false,
   onChanged,
 }: {
@@ -38,6 +40,7 @@ export default function OrganisationCard({
   departments: Department[];
   seniorityLevels: SeniorityLevel[];
   categories: Category[];
+  countries: Country[];
   defaultExpanded?: boolean;
   onChanged: () => void;
 }) {
@@ -159,12 +162,20 @@ export default function OrganisationCard({
           <div className="text-right text-xs leading-relaxed text-slate-500">
             <div className="flex items-center justify-end gap-1">
               <CountryFlag country={org.country} />
-              <EditableText
-                value={org.country}
-                onSave={(v) => save({ country: v })}
-                placeholder="Country"
-                className="inline w-24 rounded border border-transparent bg-transparent text-right text-xs hover:border-slate-200 focus:border-slate-400 focus:bg-white focus:outline-none"
-              />
+              <select
+                value={org.country ?? ""}
+                onChange={(e) => save({ country: e.target.value || null })}
+                className="rounded border border-transparent bg-transparent text-right text-xs text-slate-500 hover:border-slate-200 focus:border-slate-400 focus:outline-none"
+              >
+                <option value="">No country</option>
+                {[...countries]
+                  .sort((a, b) => a.name.localeCompare(b.name))
+                  .map((c) => (
+                    <option key={c.id} value={c.name}>
+                      {c.name}
+                    </option>
+                  ))}
+              </select>
             </div>
             <div>
               Spotted:{" "}

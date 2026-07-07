@@ -11,12 +11,13 @@ import Link from "next/link";
 import MultiSelectFilter from "@/components/MultiSelectFilter";
 import CountryFlag from "@/components/CountryFlag";
 import { fetchOrganisations, fetchSettingsLists, updateOrganisation } from "@/lib/data";
-import type { Organisation, Status, Category } from "@/types";
+import type { Organisation, Status, Category, Country } from "@/types";
 
 export default function PipelinePage() {
   const [orgs, setOrgs] = useState<Organisation[]>([]);
   const [statuses, setStatuses] = useState<Status[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [countries, setCountries] = useState<Country[]>([]);
   const [categoryFilter, setCategoryFilter] = useState<string[]>([]);
   const [countryFilter, setCountryFilter] = useState<string[]>([]);
   const [staffMin, setStaffMin] = useState<string>("1");
@@ -31,6 +32,7 @@ export default function PipelinePage() {
     setOrgs(orgData);
     setStatuses(settings.statuses);
     setCategories(settings.categories);
+    setCountries(settings.countries);
     setLoading(false);
   }
 
@@ -38,11 +40,10 @@ export default function PipelinePage() {
     load();
   }, []);
 
-  const countryOptions = useMemo(() => {
-    const set = new Set<string>();
-    orgs.forEach((o) => o.country && set.add(o.country));
-    return Array.from(set).sort();
-  }, [orgs]);
+  const countryOptions = useMemo(
+    () => [...countries].sort((a, b) => a.name.localeCompare(b.name)),
+    [countries]
+  );
 
   const sortedCategoryOptions = useMemo(
     () =>
@@ -106,7 +107,7 @@ export default function PipelinePage() {
           />
           <MultiSelectFilter
             label="Country"
-            options={countryOptions.map((c) => ({ value: c, label: c }))}
+            options={countryOptions.map((c) => ({ value: c.name, label: c.name }))}
             selected={countryFilter}
             onChange={setCountryFilter}
           />

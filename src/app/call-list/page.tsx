@@ -15,6 +15,7 @@ import type {
   Department,
   SeniorityLevel,
   Category,
+  Country,
   SortField,
   SortDirection,
 } from "@/types";
@@ -28,6 +29,7 @@ function CallListInner() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [seniorityLevels, setSeniorityLevels] = useState<SeniorityLevel[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [countries, setCountries] = useState<Country[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [search, setSearch] = useState("");
@@ -48,6 +50,7 @@ function CallListInner() {
     setDepartments(settings.departments);
     setSeniorityLevels(settings.seniorityLevels);
     setCategories(settings.categories);
+    setCountries(settings.countries);
     setLoading(false);
   }
 
@@ -56,11 +59,10 @@ function CallListInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const countryOptions = useMemo(() => {
-    const set = new Set<string>();
-    orgs.forEach((o) => o.country && set.add(o.country));
-    return Array.from(set).sort();
-  }, [orgs]);
+  const countryOptions = useMemo(
+    () => [...countries].sort((a, b) => a.name.localeCompare(b.name)),
+    [countries]
+  );
 
   const sortedCategoryOptions = useMemo(
     () =>
@@ -193,7 +195,7 @@ function CallListInner() {
           />
           <MultiSelectFilter
             label="Country"
-            options={countryOptions.map((c) => ({ value: c, label: c }))}
+            options={countryOptions.map((c) => ({ value: c.name, label: c.name }))}
             selected={countryFilter}
             onChange={setCountryFilter}
           />
@@ -220,6 +222,12 @@ function CallListInner() {
         </div>
       </div>
 
+      {!loading && (
+        <p className="mb-3 mt-4 text-sm text-slate-500">
+          {filtered.length} organisation{filtered.length === 1 ? "" : "s"} matching current filters
+        </p>
+      )}
+
       {loading ? (
         <p className="text-sm text-slate-400">Loading…</p>
       ) : filtered.length === 0 ? (
@@ -233,6 +241,7 @@ function CallListInner() {
             departments={departments}
             seniorityLevels={seniorityLevels}
             categories={categories}
+            countries={countries}
             onChanged={load}
           />
         ))

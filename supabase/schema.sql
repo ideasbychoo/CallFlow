@@ -32,6 +32,13 @@ create table categories (
   created_at timestamptz not null default now()
 );
 
+create table countries (
+  id uuid primary key default gen_random_uuid(),
+  name text not null unique,
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now()
+);
+
 -- ============ CORE TABLES ============
 
 create table organisations (
@@ -139,6 +146,7 @@ alter table statuses enable row level security;
 alter table departments enable row level security;
 alter table seniority_levels enable row level security;
 alter table categories enable row level security;
+alter table countries enable row level security;
 alter table organisations enable row level security;
 alter table office_locations enable row level security;
 alter table staff enable row level security;
@@ -151,6 +159,8 @@ create policy "Authenticated users can do everything - departments" on departmen
 create policy "Authenticated users can do everything - seniority_levels" on seniority_levels
   for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 create policy "Authenticated users can do everything - categories" on categories
+  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "Authenticated users can do everything - countries" on countries
   for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 create policy "Authenticated users can do everything - organisations" on organisations
   for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
