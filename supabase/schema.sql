@@ -84,6 +84,8 @@ create table staff (
   direct_dial text,
   linkedin text,
   background_notes text,
+  bio text,
+  bio_url text,
   availability_notes text,
   conversation_notes text,
   created_at timestamptz not null default now(),

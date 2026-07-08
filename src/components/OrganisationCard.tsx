@@ -612,6 +612,33 @@ function StaffPersonEditor({
         className="w-full rounded border border-transparent bg-transparent text-xs text-slate-500 hover:border-slate-200 focus:border-slate-400 focus:bg-white focus:outline-none"
       />
       <EditableText
+        value={person.bio}
+        onSave={(v) => update({ bio: v })}
+        placeholder="Bio (from their website)"
+        multiline
+        className="w-full rounded border border-transparent bg-transparent text-xs text-slate-500 hover:border-slate-200 focus:border-slate-400 focus:bg-white focus:outline-none"
+      />
+      <div className="flex items-center gap-2">
+        {person.bio_url && (
+          <a
+            href={person.bio_url}
+            onClick={(e) => {
+              e.preventDefault();
+              openInNewWindow(person.bio_url!);
+            }}
+            className="truncate text-xs text-blue-600 hover:underline"
+          >
+            {person.bio_url}
+          </a>
+        )}
+      </div>
+      <EditableText
+        value={person.bio_url}
+        onSave={(v) => update({ bio_url: v })}
+        placeholder="Bio URL"
+        className="w-full rounded border border-transparent bg-transparent text-xs hover:border-slate-200 focus:border-slate-400 focus:bg-white focus:outline-none"
+      />
+      <EditableText
         value={person.conversation_notes}
         onSave={(v) => update({ conversation_notes: v })}
         placeholder="Conversation notes"

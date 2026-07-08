@@ -48,6 +48,8 @@ export type StaffMember = {
   direct_dial: string | null;
   linkedin: string | null;
   background_notes: string | null;
+  bio: string | null;
+  bio_url: string | null;
   availability_notes: string | null;
   conversation_notes: string | null;
 };

@@ -126,6 +126,7 @@ export default function StaffPage() {
                 {[
                   "Organisation", "Full name", "Job title", "Department", "Seniority",
                   "Email", "Direct dial", "LinkedIn", "Background notes",
+                  "Bio", "Bio URL",
                   "Availability notes", "Conversation notes", "",
                 ].map((h) => (
                   <th key={h} className="whitespace-nowrap border-b border-slate-200 px-2 py-2 font-medium">
@@ -189,6 +190,12 @@ export default function StaffPage() {
                   </td>
                   <td className="min-w-[220px] px-2 py-1">
                     <EditableText value={person.background_notes} onSave={(v) => save(person.id, { background_notes: v })} multiline className={cellClass} />
+                  </td>
+                  <td className="min-w-[220px] px-2 py-1">
+                    <EditableText value={person.bio} onSave={(v) => save(person.id, { bio: v })} multiline className={cellClass} />
+                  </td>
+                  <td className="min-w-[180px] px-2 py-1">
+                    <EditableText value={person.bio_url} onSave={(v) => save(person.id, { bio_url: v })} className={cellClass} />
                   </td>
                   <td className="min-w-[180px] px-2 py-1">
                     <EditableText value={person.availability_notes} onSave={(v) => save(person.id, { availability_notes: v })} multiline className={cellClass} />
