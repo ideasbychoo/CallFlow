@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { EditableText } from "@/components/EditableField";
+import MultiSelectFilter from "@/components/MultiSelectFilter";
 import {
   fetchOrganisations,
   fetchSettingsLists,
@@ -11,7 +12,7 @@ import {
   createOrganisation,
   deleteOrganisation,
 } from "@/lib/data";
-import type { Organisation, Status, Category, Country, SourceType, Source } from "@/types";
+import type { Organisation, Status, Category, Country, SourceType, Source, Segment } from "@/types";
 
 export default function OrganisationsPage() {
   const [orgs, setOrgs] = useState<Organisation[]>([]);
@@ -20,6 +21,8 @@ export default function OrganisationsPage() {
   const [countries, setCountries] = useState<Country[]>([]);
   const [sourceTypes, setSourceTypes] = useState<SourceType[]>([]);
   const [sources, setSources] = useState<Source[]>([]);
+  const [segments, setSegments] = useState<Segment[]>([]);
+  const [segmentFilter, setSegmentFilter] = useState<string[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -35,6 +38,7 @@ export default function OrganisationsPage() {
     setCountries(settings.countries);
     setSourceTypes(settings.sourceTypes);
     setSources(sourcesData);
+    setSegments(settings.segments);
     setLoading(false);
   }
 
@@ -58,6 +62,14 @@ export default function OrganisationsPage() {
     () => [...sources].sort((a, b) => a.name.localeCompare(b.name)),
     [sources]
   );
+  const sortedSegments = useMemo(
+    () => [...segments].sort((a, b) => a.name.localeCompare(b.name)),
+    [segments]
+  );
+  const segmentOptions = useMemo(
+    () => sortedSegments.map((s) => ({ value: s.id, label: s.name })),
+    [sortedSegments]
+  );
   const sortedStatuses = useMemo(
     () => [...statuses].sort((a, b) => a.sort_order - b.sort_order),
     [statuses]
@@ -65,7 +77,7 @@ export default function OrganisationsPage() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const list = q
+    let list = q
       ? orgs.filter(
           (o) =>
             o.name.toLowerCase().includes(q) ||
@@ -73,8 +85,11 @@ export default function OrganisationsPage() {
             o.angle?.toLowerCase().includes(q)
         )
       : orgs;
+    if (segmentFilter.length > 0) {
+      list = list.filter((o) => o.segment_id && segmentFilter.includes(o.segment_id));
+    }
     return [...list].sort((a, b) => a.name.localeCompare(b.name));
-  }, [orgs, search]);
+  }, [orgs, search, segmentFilter]);
 
   async function save(id: string, fields: Partial<Organisation>) {
     await updateOrganisation(id, fields);
@@ -102,13 +117,21 @@ export default function OrganisationsPage() {
             + Add organisation
           </button>
         </div>
-        <input
-          type="text"
-          placeholder="Search organisations…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-80 rounded border border-slate-300 px-3 py-2 text-sm text-slate-800 focus:border-slate-500 focus:outline-none"
-        />
+        <div className="flex flex-wrap items-center gap-3">
+          <input
+            type="text"
+            placeholder="Search organisations…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-80 rounded border border-slate-300 px-3 py-2 text-sm text-slate-800 focus:border-slate-500 focus:outline-none"
+          />
+          <MultiSelectFilter
+            label="Segment"
+            options={segmentOptions}
+            selected={segmentFilter}
+            onChange={setSegmentFilter}
+          />
+        </div>
         {!loading && (
           <p className="mt-2 text-sm text-slate-500">{filtered.length} organisations</p>
         )}
@@ -122,7 +145,7 @@ export default function OrganisationsPage() {
             <thead className="sticky top-0 z-[5] bg-slate-100 text-left text-slate-600">
               <tr>
                 {[
-                  "Name", "Category", "Country", "Similar to", "Angle", "Status",
+                  "Name", "Category", "Segment", "Country", "Similar to", "Angle", "Status",
                   "Source Type", "Source",
                   "Date spotted", "Website", "Team page", "Annual report", "Impact report",
                   "Org LinkedIn", "Beneficiaries", "Workers", "Notes",
@@ -149,6 +172,18 @@ export default function OrganisationsPage() {
                       <option value="">—</option>
                       {sortedCategories.map((c) => (
                         <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="min-w-[180px] px-2 py-1">
+                    <select
+                      value={org.segment_id ?? ""}
+                      onChange={(e) => save(org.id, { segment_id: e.target.value || null })}
+                      className={cellClass}
+                    >
+                      <option value="">—</option>
+                      {sortedSegments.map((s) => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
                       ))}
                     </select>
                   </td>

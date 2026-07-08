@@ -23,6 +23,12 @@ export type Category = {
   color: string | null;
 };
 
+export type Segment = {
+  id: string;
+  name: string;
+  sort_order: number;
+};
+
 export type Country = {
   id: string;
   name: string;
@@ -81,6 +87,7 @@ export type Organisation = {
   id: string;
   name: string;
   category_id: string | null;
+  segment_id: string | null;
   country: string | null;
   similar_to_client: string | null;
   angle: string | null;
@@ -103,6 +110,7 @@ export type Organisation = {
 
   // joined/expanded on read
   category?: Category | null;
+  segment?: Segment | null;
   office_locations?: OfficeLocation[];
   staff?: StaffMember[];
   status_history?: StatusHistoryEntry[];

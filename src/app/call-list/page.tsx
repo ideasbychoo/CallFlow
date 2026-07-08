@@ -19,6 +19,7 @@ import type {
   Country,
   SourceType,
   Source,
+  Segment,
   SortField,
   SortDirection,
 } from "@/types";
@@ -35,11 +36,13 @@ function CallListInner() {
   const [countries, setCountries] = useState<Country[]>([]);
   const [sourceTypes, setSourceTypes] = useState<SourceType[]>([]);
   const [sources, setSources] = useState<Source[]>([]);
+  const [segments, setSegments] = useState<Segment[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string[]>([]);
   const [countryFilter, setCountryFilter] = useState<string[]>([]);
+  const [segmentFilter, setSegmentFilter] = useState<string[]>([]);
   const [staffMin, setStaffMin] = useState<string>("1");
   const [staffMax, setStaffMax] = useState<string>("");
   const [phonePresentOnly, setPhonePresentOnly] = useState<boolean>(true);
@@ -60,6 +63,7 @@ function CallListInner() {
     setCountries(settings.countries);
     setSourceTypes(settings.sourceTypes);
     setSources(sourcesData);
+    setSegments(settings.segments);
     setLoading(false);
   }
 
@@ -79,6 +83,14 @@ function CallListInner() {
         .sort((a, b) => a.name.localeCompare(b.name))
         .map((c) => ({ value: c.id, label: c.name })),
     [categories]
+  );
+
+  const sortedSegmentOptions = useMemo(
+    () =>
+      [...segments]
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((s) => ({ value: s.id, label: s.name })),
+    [segments]
   );
 
   function hasPhoneNumber(o: Organisation): boolean {
@@ -103,6 +115,11 @@ function CallListInner() {
     if (categoryFilter.length > 0) {
       result = result.filter(
         (o) => o.category_id && categoryFilter.includes(o.category_id)
+      );
+    }
+    if (segmentFilter.length > 0) {
+      result = result.filter(
+        (o) => o.segment_id && segmentFilter.includes(o.segment_id)
       );
     }
     if (countryFilter.length > 0) {
@@ -147,7 +164,7 @@ function CallListInner() {
     });
 
     return sorted;
-  }, [orgs, phonePresentOnly, statusFilter, categoryFilter, countryFilter, staffMin, staffMax, search, sortField, sortDirection]);
+  }, [orgs, phonePresentOnly, statusFilter, categoryFilter, segmentFilter, countryFilter, staffMin, staffMax, search, sortField, sortDirection]);
 
   async function handleAddOrganisation() {
     const defaultStatus = statuses.find((s) => s.sort_order === 1);
@@ -216,6 +233,12 @@ function CallListInner() {
             onChange={setCategoryFilter}
           />
           <MultiSelectFilter
+            label="Segment"
+            options={sortedSegmentOptions}
+            selected={segmentFilter}
+            onChange={setSegmentFilter}
+          />
+          <MultiSelectFilter
             label="Country"
             options={countryOptions.map((c) => ({ value: c.name, label: c.name }))}
             selected={countryFilter}
@@ -275,6 +298,7 @@ function CallListInner() {
             countries={countries}
             sourceTypes={sourceTypes}
             sources={sources}
+            segments={segments}
             onChanged={load}
           />
         ))

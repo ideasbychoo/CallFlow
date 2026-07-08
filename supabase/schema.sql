@@ -62,12 +62,22 @@ create table source_source_types (
   primary key (source_id, source_type_id)
 );
 
+-- Segments: a smaller, curated classification (unlike Categories, which had
+-- become too fragmented to be meaningful).
+create table segments (
+  id uuid primary key default gen_random_uuid(),
+  name text not null unique,
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now()
+);
+
 -- ============ CORE TABLES ============
 
 create table organisations (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   category_id uuid references categories(id) on delete set null,
+  segment_id uuid references segments(id) on delete set null,
   country text,
   similar_to_client text,
   angle text,
@@ -127,6 +137,7 @@ create table status_history (
 
 create index idx_organisations_status on organisations(status_id);
 create index idx_organisations_category on organisations(category_id);
+create index idx_organisations_segment on organisations(segment_id);
 create index idx_organisations_source_type on organisations(source_type_id);
 create index idx_organisations_source on organisations(source_id);
 create index idx_office_locations_org on office_locations(organisation_id);
@@ -173,6 +184,43 @@ insert into source_types (name, sort_order) values
   ('Awards', 1),
   ('Membership Body', 2);
 
+-- ============ SEED DATA: SEGMENTS ============
+
+insert into segments (name, sort_order) values
+  ('Adult with learning disabilities', 1),
+  ('Befriending', 2),
+  ('Children with disabilities', 3),
+  ('Child poverty', 4),
+  ('Christian', 5),
+  ('Church-based projects and ministries', 6),
+  ('Collective Impact', 7),
+  ('Community Climate Action', 8),
+  ('Criminal justice', 9),
+  ('Crisis grants / grants to individuals', 10),
+  ('Disabilities', 11),
+  ('Early-onset dementia', 12),
+  ('Early Years', 13),
+  ('Foodbank', 14),
+  ('HAF Holiday Activities and Food programme', 15),
+  ('Grant making', 16),
+  ('Incubators & Accelerators', 17),
+  ('International Development', 18),
+  ('Legal Aid', 19),
+  ('Livelihoods', 20),
+  ('Local Authorities', 21),
+  ('Long-term unemployment', 22),
+  ('Loneliness & Isolation', 23),
+  ('Boutique Management Consultancy: Teamwork & Effectiveness', 24),
+  ('Mental health & wellbeing', 25),
+  ('Older people', 26),
+  ('Outdoor Recreation', 27),
+  ('Social mobility', 28),
+  ('Social Housing community projects', 29),
+  ('Sport-based youth engagement', 30),
+  ('Staff wellbeing consultancy', 31),
+  ('Youth justice', 32),
+  ('Youth work', 33);
+
 -- ============ ROW LEVEL SECURITY ============
 -- The app's server-side API routes use the service_role key (bypasses RLS).
 -- The browser only ever uses the anon key through an authenticated session,
@@ -186,6 +234,7 @@ alter table countries enable row level security;
 alter table source_types enable row level security;
 alter table sources enable row level security;
 alter table source_source_types enable row level security;
+alter table segments enable row level security;
 alter table organisations enable row level security;
 alter table office_locations enable row level security;
 alter table staff enable row level security;
@@ -206,6 +255,8 @@ create policy "Authenticated users can do everything - source_types" on source_t
 create policy "Authenticated users can do everything - sources" on sources
   for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 create policy "Authenticated users can do everything - source_source_types" on source_source_types
+  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "Authenticated users can do everything - segments" on segments
   for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 create policy "Authenticated users can do everything - organisations" on organisations
   for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');

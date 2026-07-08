@@ -8,12 +8,14 @@ import type {
   Country,
   SourceType,
   Source,
+  Segment,
   StaffMember,
 } from "@/types";
 
 const ORG_SELECT = `
   *,
   category:categories(id, name, sort_order),
+  segment:segments(id, name, sort_order),
   source_type:source_types(id, name, sort_order),
   source:sources(id, name, website),
   office_locations(*),
@@ -39,9 +41,10 @@ export async function fetchSettingsLists(): Promise<{
   categories: Category[];
   countries: Country[];
   sourceTypes: SourceType[];
+  segments: Segment[];
 }> {
   const supabase = createClient();
-  const [statuses, departments, seniorityLevels, categories, countries, sourceTypes] =
+  const [statuses, departments, seniorityLevels, categories, countries, sourceTypes, segments] =
     await Promise.all([
       supabase.from("statuses").select("*").order("sort_order"),
       supabase.from("departments").select("*").order("sort_order"),
@@ -49,6 +52,7 @@ export async function fetchSettingsLists(): Promise<{
       supabase.from("categories").select("*").order("sort_order"),
       supabase.from("countries").select("*").order("sort_order"),
       supabase.from("source_types").select("*").order("sort_order"),
+      supabase.from("segments").select("*").order("sort_order"),
     ]);
 
   return {
@@ -58,6 +62,7 @@ export async function fetchSettingsLists(): Promise<{
     categories: (categories.data ?? []) as Category[],
     countries: (countries.data ?? []) as Country[],
     sourceTypes: (sourceTypes.data ?? []) as SourceType[],
+    segments: (segments.data ?? []) as Segment[],
   };
 }
 
@@ -172,7 +177,8 @@ export type SettingsTable =
   | "seniority_levels"
   | "categories"
   | "countries"
-  | "source_types";
+  | "source_types"
+  | "segments";
 
 export async function addSettingsItem(table: SettingsTable, name: string, sort_order: number) {
   const supabase = createClient();

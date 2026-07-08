@@ -15,6 +15,7 @@ import type {
   Country,
   SourceType,
   Source,
+  Segment,
   StaffMember,
 } from "@/types";
 import {
@@ -39,6 +40,7 @@ export default function OrganisationCard({
   countries,
   sourceTypes,
   sources,
+  segments,
   defaultExpanded = false,
   onChanged,
 }: {
@@ -50,6 +52,7 @@ export default function OrganisationCard({
   countries: Country[];
   sourceTypes: SourceType[];
   sources: Source[];
+  segments: Segment[];
   defaultExpanded?: boolean;
   onChanged: () => void;
 }) {
@@ -146,6 +149,20 @@ export default function OrganisationCard({
                   {c.name}
                 </option>
               ))}
+            </select>
+            <select
+              value={org.segment_id ?? ""}
+              onChange={(e) => save({ segment_id: e.target.value || null })}
+              className="rounded border border-transparent bg-transparent text-sm text-slate-600 hover:border-slate-200 focus:border-slate-400 focus:outline-none"
+            >
+              <option value="">No segment</option>
+              {[...segments]
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
             </select>
             <span className="font-medium">· Similar to</span>
             <EditableText

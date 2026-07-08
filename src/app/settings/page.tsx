@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import SettingsList from "@/components/SettingsList";
 import { fetchSettingsLists } from "@/lib/data";
-import type { Status, Department, SeniorityLevel, Category, Country, SourceType } from "@/types";
+import type { Status, Department, SeniorityLevel, Category, Country, SourceType, Segment } from "@/types";
 
 export default function SettingsPage() {
   const [statuses, setStatuses] = useState<Status[]>([]);
@@ -12,6 +12,7 @@ export default function SettingsPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [countries, setCountries] = useState<Country[]>([]);
   const [sourceTypes, setSourceTypes] = useState<SourceType[]>([]);
+  const [segments, setSegments] = useState<Segment[]>([]);
   const [loading, setLoading] = useState(true);
 
   async function load() {
@@ -22,6 +23,7 @@ export default function SettingsPage() {
     setCategories(settings.categories);
     setCountries(settings.countries);
     setSourceTypes(settings.sourceTypes);
+    setSegments(settings.segments);
     setLoading(false);
   }
 
@@ -69,6 +71,13 @@ export default function SettingsPage() {
         title="Countries"
         table="countries"
         items={countries}
+        onChanged={load}
+        sortAlphabetically
+      />
+      <SettingsList
+        title="Segments"
+        table="segments"
+        items={segments}
         onChanged={load}
         sortAlphabetically
       />
