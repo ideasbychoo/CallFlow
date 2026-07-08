@@ -15,6 +15,25 @@ export default function SettingsPage() {
   const [segments, setSegments] = useState<Segment[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string; warnings?: string[] } | null>(null);
+
+  async function runIngestTest() {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const res = await fetch("/api/ingest/test-connection", { method: "POST" });
+      const data = await res.json();
+      setTestResult(data);
+    } catch (err) {
+      setTestResult({
+        success: false,
+        message: err instanceof Error ? err.message : "Something went wrong running the test.",
+      });
+    } finally {
+      setTesting(false);
+    }
+  }
 
   async function load() {
     setLoadError(null);
@@ -57,6 +76,40 @@ export default function SettingsPage() {
           </button>
         </div>
       )}
+
+      <div className="mb-6 rounded-lg border border-slate-200 bg-white p-4">
+        <h2 className="mb-1 text-sm font-semibold text-slate-800">Prospecting agent connection</h2>
+        <p className="mb-3 text-xs text-slate-500">
+          Checks that the Claude Code routine (or any other agent) can write new prospects into
+          CallFlow. This creates a harmless test record and deletes it immediately — nothing
+          you need to clean up.
+        </p>
+        <button
+          onClick={runIngestTest}
+          disabled={testing}
+          className="rounded bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+        >
+          {testing ? "Testing\u2026" : "Test ingest connection"}
+        </button>
+        {testResult && (
+          <div
+            className={`mt-3 rounded border px-3 py-2 text-sm ${
+              testResult.success
+                ? "border-green-200 bg-green-50 text-green-700"
+                : "border-red-200 bg-red-50 text-red-700"
+            }`}
+          >
+            <div>{testResult.success ? "\u2705 " : "\u274c "}{testResult.message}</div>
+            {testResult.warnings && testResult.warnings.length > 0 && (
+              <ul className="mt-1 list-disc pl-5">
+                {testResult.warnings.map((w, i) => (
+                  <li key={i}>{w}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </div>
 
       <SettingsList
         title="Statuses"
