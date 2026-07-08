@@ -14,17 +14,25 @@ export default function SettingsPage() {
   const [sourceTypes, setSourceTypes] = useState<SourceType[]>([]);
   const [segments, setSegments] = useState<Segment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   async function load() {
-    const settings = await fetchSettingsLists();
-    setStatuses(settings.statuses);
-    setDepartments(settings.departments);
-    setSeniorityLevels(settings.seniorityLevels);
-    setCategories(settings.categories);
-    setCountries(settings.countries);
-    setSourceTypes(settings.sourceTypes);
-    setSegments(settings.segments);
-    setLoading(false);
+    setLoadError(null);
+    try {
+      const settings = await fetchSettingsLists();
+      setStatuses(settings.statuses);
+      setDepartments(settings.departments);
+      setSeniorityLevels(settings.seniorityLevels);
+      setCategories(settings.categories);
+      setCountries(settings.countries);
+      setSourceTypes(settings.sourceTypes);
+      setSegments(settings.segments);
+    } catch (err) {
+      console.error(err);
+      setLoadError(err instanceof Error ? err.message : "Failed to load data.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -40,6 +48,15 @@ export default function SettingsPage() {
       <h1 className="sticky top-0 z-10 -mx-8 mb-6 bg-slate-50 px-8 py-2 text-3xl font-semibold text-slate-800">
         Settings
       </h1>
+
+      {loadError && (
+        <div className="mb-4 flex items-center justify-between rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <span>Couldn&rsquo;t load data: {loadError}</span>
+          <button onClick={load} className="ml-4 shrink-0 rounded border border-red-300 bg-white px-3 py-1 font-medium hover:bg-red-50">
+            Retry
+          </button>
+        </div>
+      )}
 
       <SettingsList
         title="Statuses"

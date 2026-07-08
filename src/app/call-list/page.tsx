@@ -41,6 +41,7 @@ function CallListInner() {
   const [segments, setSegments] = useState<Segment[]>([]);
   const [emailTemplates, setEmailTemplates] = useState<EmailTemplate[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string[]>([]);
@@ -53,23 +54,30 @@ function CallListInner() {
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
   async function load() {
-    const [orgData, settings, sourcesData, emailTemplatesData] = await Promise.all([
-      fetchOrganisations(),
-      fetchSettingsLists(),
-      fetchAllSources(),
-      fetchAllEmailTemplates(),
-    ]);
-    setOrgs(orgData);
-    setStatuses(settings.statuses);
-    setDepartments(settings.departments);
-    setSeniorityLevels(settings.seniorityLevels);
-    setCategories(settings.categories);
-    setCountries(settings.countries);
-    setSourceTypes(settings.sourceTypes);
-    setSources(sourcesData);
-    setSegments(settings.segments);
-    setEmailTemplates(emailTemplatesData);
-    setLoading(false);
+    setLoadError(null);
+    try {
+      const [orgData, settings, sourcesData, emailTemplatesData] = await Promise.all([
+        fetchOrganisations(),
+        fetchSettingsLists(),
+        fetchAllSources(),
+        fetchAllEmailTemplates(),
+      ]);
+      setOrgs(orgData);
+      setStatuses(settings.statuses);
+      setDepartments(settings.departments);
+      setSeniorityLevels(settings.seniorityLevels);
+      setCategories(settings.categories);
+      setCountries(settings.countries);
+      setSourceTypes(settings.sourceTypes);
+      setSources(sourcesData);
+      setSegments(settings.segments);
+      setEmailTemplates(emailTemplatesData);
+    } catch (err) {
+      console.error(err);
+      setLoadError(err instanceof Error ? err.message : "Failed to load data.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -285,6 +293,15 @@ function CallListInner() {
         <p className="mb-3 mt-4 text-sm text-slate-500">
           {filtered.length} organisation{filtered.length === 1 ? "" : "s"} matching current filters
         </p>
+      )}
+
+      {loadError && (
+        <div className="mb-4 flex items-center justify-between rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <span>Couldn&rsquo;t load data: {loadError}</span>
+          <button onClick={load} className="ml-4 shrink-0 rounded border border-red-300 bg-white px-3 py-1 font-medium hover:bg-red-50">
+            Retry
+          </button>
+        </div>
       )}
 
       {loading ? (

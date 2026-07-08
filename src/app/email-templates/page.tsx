@@ -110,11 +110,19 @@ function TemplateEditor({
 export default function EmailTemplatesPage() {
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   async function load() {
-    const data = await fetchAllEmailTemplates();
-    setTemplates(data);
-    setLoading(false);
+    setLoadError(null);
+    try {
+      const data = await fetchAllEmailTemplates();
+      setTemplates(data);
+    } catch (err) {
+      console.error(err);
+      setLoadError(err instanceof Error ? err.message : "Failed to load data.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -152,6 +160,15 @@ export default function EmailTemplatesPage() {
           organisation&rsquo;s and contact&rsquo;s details when you send.
         </p>
       </div>
+
+      {loadError && (
+        <div className="mb-4 flex items-center justify-between rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <span>Couldn&rsquo;t load data: {loadError}</span>
+          <button onClick={load} className="ml-4 shrink-0 rounded border border-red-300 bg-white px-3 py-1 font-medium hover:bg-red-50">
+            Retry
+          </button>
+        </div>
+      )}
 
       {loading ? (
         <p className="text-sm text-slate-400">Loading…</p>

@@ -21,18 +21,26 @@ export default function StaffPage() {
   const [seniorityLevels, setSeniorityLevels] = useState<SeniorityLevel[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   async function load() {
-    const [staffData, orgs, settings] = await Promise.all([
-      fetchAllStaff(),
-      fetchAllOrganisationsBasic(),
-      fetchSettingsLists(),
-    ]);
-    setRows(staffData);
-    setOrgOptions(orgs);
-    setDepartments(settings.departments);
-    setSeniorityLevels(settings.seniorityLevels);
-    setLoading(false);
+    setLoadError(null);
+    try {
+      const [staffData, orgs, settings] = await Promise.all([
+        fetchAllStaff(),
+        fetchAllOrganisationsBasic(),
+        fetchSettingsLists(),
+      ]);
+      setRows(staffData);
+      setOrgOptions(orgs);
+      setDepartments(settings.departments);
+      setSeniorityLevels(settings.seniorityLevels);
+    } catch (err) {
+      console.error(err);
+      setLoadError(err instanceof Error ? err.message : "Failed to load data.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -115,6 +123,15 @@ export default function StaffPage() {
         />
         {!loading && <p className="mt-2 text-sm text-slate-500">{filtered.length} people</p>}
       </div>
+
+      {loadError && (
+        <div className="mb-4 flex items-center justify-between rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <span>Couldn&rsquo;t load data: {loadError}</span>
+          <button onClick={load} className="ml-4 shrink-0 rounded border border-red-300 bg-white px-3 py-1 font-medium hover:bg-red-50">
+            Retry
+          </button>
+        </div>
+      )}
 
       {loading ? (
         <p className="text-sm text-slate-400">Loading…</p>

@@ -17,15 +17,23 @@ export default function SourcesPage() {
   const [sources, setSources] = useState<Source[]>([]);
   const [sourceTypes, setSourceTypes_] = useState<SourceType[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   async function load() {
-    const [sourcesData, settings] = await Promise.all([
-      fetchAllSources(),
-      fetchSettingsLists(),
-    ]);
-    setSources(sourcesData);
-    setSourceTypes_(settings.sourceTypes);
-    setLoading(false);
+    setLoadError(null);
+    try {
+      const [sourcesData, settings] = await Promise.all([
+        fetchAllSources(),
+        fetchSettingsLists(),
+      ]);
+      setSources(sourcesData);
+      setSourceTypes_(settings.sourceTypes);
+    } catch (err) {
+      console.error(err);
+      setLoadError(err instanceof Error ? err.message : "Failed to load data.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -87,6 +95,15 @@ export default function SourcesPage() {
           Each source needs at least one Source Type — manage that list in Settings.
         </p>
       </div>
+
+      {loadError && (
+        <div className="mb-4 flex items-center justify-between rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <span>Couldn&rsquo;t load data: {loadError}</span>
+          <button onClick={load} className="ml-4 shrink-0 rounded border border-red-300 bg-white px-3 py-1 font-medium hover:bg-red-50">
+            Retry
+          </button>
+        </div>
+      )}
 
       {loading ? (
         <p className="text-sm text-slate-400">Loading…</p>

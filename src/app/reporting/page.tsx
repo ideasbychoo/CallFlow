@@ -20,16 +20,24 @@ export default function ReportingPage() {
   const [statuses, setStatuses] = useState<Status[]>([]);
   const [selectedWeekStart, setSelectedWeekStart] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
-      const [historyData, settings] = await Promise.all([
-        fetchAllStatusHistory(),
-        fetchSettingsLists(),
-      ]);
-      setHistory(historyData);
-      setStatuses(settings.statuses);
-      setLoading(false);
+      setLoadError(null);
+      try {
+        const [historyData, settings] = await Promise.all([
+          fetchAllStatusHistory(),
+          fetchSettingsLists(),
+        ]);
+        setHistory(historyData);
+        setStatuses(settings.statuses);
+      } catch (err) {
+        console.error(err);
+        setLoadError(err instanceof Error ? err.message : "Failed to load data.");
+      } finally {
+        setLoading(false);
+      }
     }
     load();
   }, []);
@@ -123,6 +131,18 @@ export default function ReportingPage() {
           Daily call attempts and status changes, based on activity recorded in the database.
         </p>
       </div>
+
+      {loadError && (
+        <div className="mb-4 flex items-center justify-between rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <span>Couldn&rsquo;t load data: {loadError}</span>
+          <button
+            onClick={() => window.location.reload()}
+            className="ml-4 shrink-0 rounded border border-red-300 bg-white px-3 py-1 font-medium hover:bg-red-50"
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       {loading ? (
         <p className="text-sm text-slate-400">Loading…</p>
