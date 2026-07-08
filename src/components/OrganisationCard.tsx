@@ -17,6 +17,7 @@ import type {
   Source,
   Segment,
   StaffMember,
+  EmailTemplate,
 } from "@/types";
 import {
   updateOrganisation,
@@ -29,6 +30,8 @@ import {
   googleVoiceCallUrl,
   openInNewWindow,
   researchSearchUrl,
+  resolveMergeTags,
+  gmailComposeUrl,
 } from "@/lib/data";
 
 export default function OrganisationCard({
@@ -41,6 +44,7 @@ export default function OrganisationCard({
   sourceTypes,
   sources,
   segments,
+  emailTemplates,
   defaultExpanded = false,
   onChanged,
 }: {
@@ -53,6 +57,7 @@ export default function OrganisationCard({
   sourceTypes: SourceType[];
   sources: Source[];
   segments: Segment[];
+  emailTemplates: EmailTemplate[];
   defaultExpanded?: boolean;
   onChanged: () => void;
 }) {
@@ -295,6 +300,10 @@ export default function OrganisationCard({
                                 <StaffPersonEditor
                                   key={p.id}
                                   person={p}
+                                  org={org}
+                                  departments={departments}
+                                  seniorityLevels={seniorityLevels}
+                                  emailTemplates={emailTemplates}
                                   onChanged={onChanged}
                                 />
                               ))}
@@ -333,6 +342,10 @@ export default function OrganisationCard({
                       <StaffPersonEditor
                         key={p.id}
                         person={p}
+                        org={org}
+                        departments={departments}
+                        seniorityLevels={seniorityLevels}
+                        emailTemplates={emailTemplates}
                         onChanged={onChanged}
                       />
                     ))}
@@ -608,14 +621,32 @@ function LinkField({
 
 function StaffPersonEditor({
   person,
+  org,
+  departments,
+  seniorityLevels,
+  emailTemplates,
   onChanged,
 }: {
   person: StaffMember;
+  org: Organisation;
+  departments: Department[];
+  seniorityLevels: SeniorityLevel[];
+  emailTemplates: EmailTemplate[];
   onChanged: () => void;
 }) {
   async function update(fields: Partial<StaffMember>) {
     await upsertStaffMember({ ...person, ...fields, id: person.id });
     onChanged();
+  }
+
+  function sendEmail(templateId: string) {
+    const template = emailTemplates.find((t) => t.id === templateId);
+    if (!template || !person.email) return;
+    const departmentName = departments.find((d) => d.id === person.department_id)?.name;
+    const seniorityName = seniorityLevels.find((s) => s.id === person.seniority_id)?.name;
+    const subject = resolveMergeTags(template.subject, org, person, departmentName, seniorityName);
+    const body = resolveMergeTags(template.body, org, person, departmentName, seniorityName);
+    openInNewWindow(gmailComposeUrl(person.email, subject, body));
   }
 
   return (
@@ -639,6 +670,21 @@ function StaffPersonEditor({
           >
             {person.email}
           </a>
+        )}
+        {person.email && emailTemplates.length > 0 && (
+          <select
+            value=""
+            onChange={(e) => {
+              if (e.target.value) sendEmail(e.target.value);
+              e.target.value = "";
+            }}
+            className="rounded border border-slate-200 bg-slate-50 text-[11px] text-slate-500 hover:text-slate-700 focus:outline-none"
+          >
+            <option value="" disabled>✉️ Send…</option>
+            {emailTemplates.map((t) => (
+              <option key={t.id} value={t.id}>{t.title}</option>
+            ))}
+          </select>
         )}
         {person.linkedin && (
           <a

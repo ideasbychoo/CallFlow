@@ -10,6 +10,7 @@ import type {
   Source,
   Segment,
   StaffMember,
+  EmailTemplate,
 } from "@/types";
 
 const ORG_SELECT = `
@@ -231,6 +232,7 @@ export async function fetchAllStatusHistory(): Promise<
 // database trigger in supabase/migrations (see 008_email_requested_call_attempt.sql).
 export function isCallAttemptStatus(statusName: string | undefined | null): boolean {
   if (!statusName) return false;
+  if (statusName === "Calling Now") return false;
   return statusName.startsWith("Call Attempted:") || statusName === "Email Requested";
 }
 
@@ -309,6 +311,95 @@ export async function deleteSource(id: string) {
   const supabase = createClient();
   const { error } = await supabase.from("sources").delete().eq("id", id);
   if (error) throw error;
+}
+
+// ============ Email Templates ============
+
+export async function fetchAllEmailTemplates(): Promise<EmailTemplate[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase.from("email_templates").select("*").order("title");
+  if (error) throw error;
+  return (data ?? []) as EmailTemplate[];
+}
+
+export async function createEmailTemplate(fields: {
+  title: string;
+  subject?: string;
+  body?: string;
+}): Promise<string> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("email_templates")
+    .insert(fields)
+    .select("id")
+    .single();
+  if (error) throw error;
+  return data.id as string;
+}
+
+export async function updateEmailTemplate(
+  id: string,
+  fields: Partial<Pick<EmailTemplate, "title" | "subject" | "body">>
+) {
+  const supabase = createClient();
+  const { error } = await supabase.from("email_templates").update(fields).eq("id", id);
+  if (error) throw error;
+}
+
+export async function deleteEmailTemplate(id: string) {
+  const supabase = createClient();
+  const { error } = await supabase.from("email_templates").delete().eq("id", id);
+  if (error) throw error;
+}
+
+// The set of mail merge tags available when writing an Email Template body,
+// looked up from the Organisation and Staff record the email is being sent
+// about/to.
+export const MAIL_MERGE_TAGS: { tag: string; label: string }[] = [
+  { tag: "{{org.name}}", label: "Organisation name" },
+  { tag: "{{org.category}}", label: "Organisation category" },
+  { tag: "{{org.segment}}", label: "Organisation segment" },
+  { tag: "{{org.country}}", label: "Organisation country" },
+  { tag: "{{org.website}}", label: "Organisation website" },
+  { tag: "{{staff.full_name}}", label: "Contact full name" },
+  { tag: "{{staff.first_name}}", label: "Contact first name" },
+  { tag: "{{staff.job_title}}", label: "Contact job title" },
+  { tag: "{{staff.department}}", label: "Contact department" },
+  { tag: "{{staff.seniority}}", label: "Contact seniority" },
+];
+
+export function resolveMergeTags(
+  text: string,
+  org: Organisation,
+  staff: StaffMember,
+  departmentName?: string,
+  seniorityName?: string
+): string {
+  const firstName = staff.full_name?.split(" ")[0] ?? "";
+  const values: Record<string, string> = {
+    "{{org.name}}": org.name ?? "",
+    "{{org.category}}": org.category?.name ?? "",
+    "{{org.segment}}": org.segment?.name ?? "",
+    "{{org.country}}": org.country ?? "",
+    "{{org.website}}": org.website ?? "",
+    "{{staff.full_name}}": staff.full_name ?? "",
+    "{{staff.first_name}}": firstName,
+    "{{staff.job_title}}": staff.job_title ?? "",
+    "{{staff.department}}": departmentName ?? "",
+    "{{staff.seniority}}": seniorityName ?? "",
+  };
+  let result = text;
+  for (const [tag, value] of Object.entries(values)) {
+    result = result.split(tag).join(value);
+  }
+  return result;
+}
+
+// Builds a Gmail compose URL, pre-filled with the recipient, subject, and
+// body. Opens Gmail's own compose window (does not send automatically).
+export function gmailComposeUrl(to: string, subject: string, body: string): string {
+  const params = new URLSearchParams({ view: "cm", fs: "1", to, su: subject, body });
+  return `https://mail.google.com/mail/?${params.toString()}`;
 }
 
 export function googleVoiceCallUrl(phoneNumber: string): string {

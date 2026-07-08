@@ -35,6 +35,15 @@ export type Country = {
   sort_order: number;
 };
 
+export type EmailTemplate = {
+  id: string;
+  title: string;
+  subject: string;
+  body: string;
+  created_at: string;
+  updated_at: string;
+};
+
 export type SourceType = {
   id: string;
   name: string;

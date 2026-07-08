@@ -97,6 +97,15 @@ export default function Sidebar({ statuses }: { statuses: Status[] }) {
         </Link>
 
         <Link
+          href="/email-templates"
+          className={`block text-lg font-semibold ${
+            pathname === "/email-templates" ? "text-slate-900" : "text-slate-700 hover:text-slate-900"
+          }`}
+        >
+          Email Templates
+        </Link>
+
+        <Link
           href="/settings"
           className={`mt-6 block text-lg font-semibold ${
             pathname === "/settings" ? "text-slate-900" : "text-slate-700 hover:text-slate-900"

@@ -135,6 +135,15 @@ create table status_history (
   changed_at timestamptz not null default now()
 );
 
+create table email_templates (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  subject text not null default '',
+  body text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create index idx_organisations_status on organisations(status_id);
 create index idx_organisations_category on organisations(category_id);
 create index idx_organisations_segment on organisations(segment_id);
@@ -239,6 +248,7 @@ alter table organisations enable row level security;
 alter table office_locations enable row level security;
 alter table staff enable row level security;
 alter table status_history enable row level security;
+alter table email_templates enable row level security;
 
 create policy "Authenticated users can do everything - statuses" on statuses
   for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
@@ -266,6 +276,8 @@ create policy "Authenticated users can do everything - staff" on staff
   for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 create policy "Authenticated users can do everything - status_history" on status_history
   for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "Authenticated users can do everything - email_templates" on email_templates
+  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 
 -- ============ TRIGGER: auto-update updated_at ============
 
@@ -283,6 +295,10 @@ create trigger organisations_set_updated_at
 
 create trigger staff_set_updated_at
   before update on staff
+  for each row execute function set_updated_at();
+
+create trigger email_templates_set_updated_at
+  before update on email_templates
   for each row execute function set_updated_at();
 
 -- ============ TRIGGERS: status changes -> history + last_interaction_at + call_attempts ============
@@ -308,7 +324,8 @@ begin
 
   if is_loggable then
     new.last_interaction_at = now();
-    if new_status_name like 'Call Attempted:%' or new_status_name = 'Email Requested' then
+    if new_status_name <> 'Calling Now'
+       and (new_status_name like 'Call Attempted:%' or new_status_name = 'Email Requested') then
       new.call_attempts = coalesce(new.call_attempts, 0) + 1;
     end if;
   end if;

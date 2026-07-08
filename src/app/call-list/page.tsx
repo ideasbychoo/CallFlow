@@ -8,6 +8,7 @@ import {
   fetchOrganisations,
   fetchSettingsLists,
   fetchAllSources,
+  fetchAllEmailTemplates,
   createOrganisation,
 } from "@/lib/data";
 import type {
@@ -20,6 +21,7 @@ import type {
   SourceType,
   Source,
   Segment,
+  EmailTemplate,
   SortField,
   SortDirection,
 } from "@/types";
@@ -37,6 +39,7 @@ function CallListInner() {
   const [sourceTypes, setSourceTypes] = useState<SourceType[]>([]);
   const [sources, setSources] = useState<Source[]>([]);
   const [segments, setSegments] = useState<Segment[]>([]);
+  const [emailTemplates, setEmailTemplates] = useState<EmailTemplate[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [search, setSearch] = useState("");
@@ -50,10 +53,11 @@ function CallListInner() {
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
   async function load() {
-    const [orgData, settings, sourcesData] = await Promise.all([
+    const [orgData, settings, sourcesData, emailTemplatesData] = await Promise.all([
       fetchOrganisations(),
       fetchSettingsLists(),
       fetchAllSources(),
+      fetchAllEmailTemplates(),
     ]);
     setOrgs(orgData);
     setStatuses(settings.statuses);
@@ -64,6 +68,7 @@ function CallListInner() {
     setSourceTypes(settings.sourceTypes);
     setSources(sourcesData);
     setSegments(settings.segments);
+    setEmailTemplates(emailTemplatesData);
     setLoading(false);
   }
 
@@ -299,6 +304,7 @@ function CallListInner() {
             sourceTypes={sourceTypes}
             sources={sources}
             segments={segments}
+            emailTemplates={emailTemplates}
             onChanged={load}
           />
         ))
