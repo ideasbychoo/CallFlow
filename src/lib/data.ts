@@ -194,6 +194,32 @@ export async function updateCategoryColor(id: string, color: string) {
   if (error) throw error;
 }
 
+export async function fetchAllStatusHistory(): Promise<
+  { id: string; organisation_id: string; status_id: string | null; changed_at: string }[]
+> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("status_history")
+    .select("id, organisation_id, status_id, changed_at")
+    .order("changed_at", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as {
+    id: string;
+    organisation_id: string;
+    status_id: string | null;
+    changed_at: string;
+  }[];
+}
+
+// A status change counts as a "call attempt" if it's one of the
+// "Call Attempted: X" statuses, or "Email Requested" (requesting an email
+// during/after a call also counts as an attempt). Kept in sync with the
+// database trigger in supabase/migrations (see 008_email_requested_call_attempt.sql).
+export function isCallAttemptStatus(statusName: string | undefined | null): boolean {
+  if (!statusName) return false;
+  return statusName.startsWith("Call Attempted:") || statusName === "Email Requested";
+}
+
 export function googleVoiceCallUrl(phoneNumber: string): string {
   const cleaned = phoneNumber.trim();
   return `https://voice.google.com/u/0/calls?a=nc,${encodeURIComponent(cleaned)}`;

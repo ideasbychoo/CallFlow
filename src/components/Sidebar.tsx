@@ -79,6 +79,15 @@ export default function Sidebar({ statuses }: { statuses: Status[] }) {
         </Link>
 
         <Link
+          href="/reporting"
+          className={`mt-6 block text-lg font-semibold ${
+            pathname === "/reporting" ? "text-slate-900" : "text-slate-700 hover:text-slate-900"
+          }`}
+        >
+          Reporting
+        </Link>
+
+        <Link
           href="/settings"
           className={`mt-6 block text-lg font-semibold ${
             pathname === "/settings" ? "text-slate-900" : "text-slate-700 hover:text-slate-900"
