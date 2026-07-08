@@ -18,11 +18,14 @@ import type {
 import {
   updateOrganisation,
   upsertStaffMember,
+  addStaffMember,
   deleteStaffMember,
   upsertOfficeLocation,
   deleteOfficeLocation,
   deleteOrganisation,
   googleVoiceCallUrl,
+  openInNewWindow,
+  researchSearchUrl,
 } from "@/lib/data";
 
 export default function OrganisationCard({
@@ -72,13 +75,18 @@ export default function OrganisationCard({
   );
 
   async function addPerson(departmentId: string, seniorityId: string) {
-    await upsertStaffMember({
-      organisation_id: org.id,
-      department_id: departmentId,
-      seniority_id: seniorityId,
-      full_name: "New person",
-    });
-    onChanged();
+    try {
+      await addStaffMember({
+        organisation_id: org.id,
+        department_id: departmentId,
+        seniority_id: seniorityId,
+        full_name: "New person",
+      });
+      onChanged();
+    } catch (err) {
+      console.error(err);
+      alert("Couldn't add the new person. Please try again.");
+    }
   }
 
   async function addLocation() {
@@ -270,9 +278,19 @@ export default function OrganisationCard({
                             </div>
                             <button
                               onClick={() => addPerson(dept.id, sen.id)}
-                              className="mt-1 text-xs text-slate-400 hover:text-slate-700"
+                              className="mt-1 block text-xs text-slate-400 hover:text-slate-700"
                             >
                               + Add person
+                            </button>
+                            <button
+                              onClick={() =>
+                                openInNewWindow(
+                                  researchSearchUrl(org.name, sen.name, dept.name)
+                                )
+                              }
+                              className="mt-1 block text-xs text-slate-400 hover:text-slate-700"
+                            >
+                              🔎 Research
                             </button>
                           </td>
                         );
@@ -336,8 +354,10 @@ export default function OrganisationCard({
                         {loc.phone_number && (
                           <a
                             href={googleVoiceCallUrl(loc.phone_number)}
-                            target="_blank"
-                            rel="noreferrer"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              openInNewWindow(googleVoiceCallUrl(loc.phone_number!));
+                            }}
                             className="text-blue-600 hover:underline"
                           >
                             {loc.phone_number}
@@ -481,8 +501,10 @@ function LinkField({
         {value && (
           <a
             href={value}
-            target="_blank"
-            rel="noreferrer"
+            onClick={(e) => {
+              e.preventDefault();
+              openInNewWindow(value);
+            }}
             className="truncate text-xs text-blue-600 hover:underline"
           >
             {value}
@@ -536,8 +558,10 @@ function StaffPersonEditor({
         {person.linkedin && (
           <a
             href={person.linkedin}
-            target="_blank"
-            rel="noreferrer"
+            onClick={(e) => {
+              e.preventDefault();
+              openInNewWindow(person.linkedin!);
+            }}
             className="text-blue-600 hover:underline"
           >
             LinkedIn
@@ -546,8 +570,10 @@ function StaffPersonEditor({
         {person.direct_dial && (
           <a
             href={googleVoiceCallUrl(person.direct_dial)}
-            target="_blank"
-            rel="noreferrer"
+            onClick={(e) => {
+              e.preventDefault();
+              openInNewWindow(googleVoiceCallUrl(person.direct_dial!));
+            }}
             className="text-blue-600 hover:underline"
           >
             {person.direct_dial}
@@ -593,7 +619,11 @@ function StaffPersonEditor({
         className="w-full rounded border border-transparent bg-transparent text-xs text-slate-500 hover:border-slate-200 focus:border-slate-400 focus:bg-white focus:outline-none"
       />
       <button
-        onClick={() => deleteStaffMember(person.id).then(onChanged)}
+        onClick={() => {
+          if (confirm(`Remove ${person.full_name}?`)) {
+            deleteStaffMember(person.id).then(onChanged);
+          }
+        }}
         className="mt-1 text-xs text-slate-300 hover:text-red-500"
       >
         Remove

@@ -37,6 +37,7 @@ function CallListInner() {
   const [countryFilter, setCountryFilter] = useState<string[]>([]);
   const [staffMin, setStaffMin] = useState<string>("1");
   const [staffMax, setStaffMax] = useState<string>("");
+  const [phonePresentOnly, setPhonePresentOnly] = useState<boolean>(true);
   const [sortField, setSortField] = useState<SortField>("date_spotted");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
@@ -72,9 +73,22 @@ function CallListInner() {
     [categories]
   );
 
+  function hasPhoneNumber(o: Organisation): boolean {
+    const officePhone = (o.office_locations ?? []).some(
+      (loc) => loc.phone_number && loc.phone_number.trim() !== ""
+    );
+    if (officePhone) return true;
+    return (o.staff ?? []).some(
+      (p) => p.direct_dial && p.direct_dial.trim() !== ""
+    );
+  }
+
   const filtered = useMemo(() => {
     let result = orgs;
 
+    if (phonePresentOnly) {
+      result = result.filter(hasPhoneNumber);
+    }
     if (statusFilter) {
       result = result.filter((o) => o.status_id === statusFilter);
     }
@@ -125,7 +139,7 @@ function CallListInner() {
     });
 
     return sorted;
-  }, [orgs, statusFilter, categoryFilter, countryFilter, staffMin, staffMax, search, sortField, sortDirection]);
+  }, [orgs, phonePresentOnly, statusFilter, categoryFilter, countryFilter, staffMin, staffMax, search, sortField, sortDirection]);
 
   async function handleAddOrganisation() {
     const defaultStatus = statuses.find((s) => s.sort_order === 1);
@@ -219,6 +233,15 @@ function CallListInner() {
               className="w-14 rounded border border-slate-200 px-1 py-0.5 text-slate-800 focus:border-slate-400 focus:outline-none"
             />
           </div>
+          <label className="flex items-center gap-1.5 rounded border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              checked={phonePresentOnly}
+              onChange={(e) => setPhonePresentOnly(e.target.checked)}
+              className="rounded border-slate-300"
+            />
+            Phone number(s) present
+          </label>
         </div>
       </div>
 

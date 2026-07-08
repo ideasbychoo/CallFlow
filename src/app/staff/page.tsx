@@ -7,7 +7,7 @@ import {
   fetchAllOrganisationsBasic,
   fetchSettingsLists,
   updateStaffMember,
-  upsertStaffMember,
+  addStaffMember,
   deleteStaffMember,
 } from "@/lib/data";
 import type { Department, SeniorityLevel, StaffMember } from "@/types";
@@ -67,12 +67,28 @@ export default function StaffPage() {
   }
 
   async function handleAdd() {
-    if (orgOptions.length === 0) return;
-    await upsertStaffMember({
-      organisation_id: orgOptions[0].id,
-      full_name: "New person",
-    });
-    load();
+    if (orgOptions.length === 0) {
+      alert("Add an organisation first, then you can add people to it here.");
+      return;
+    }
+    try {
+      const newId = await addStaffMember({
+        organisation_id: orgOptions[0].id,
+        full_name: "New person",
+      });
+      await load();
+      // Scroll the newly added row into view and focus its name field so
+      // it's obvious something happened, since the table is sorted
+      // alphabetically and a "New person" row can otherwise land off-screen.
+      requestAnimationFrame(() => {
+        const row = document.getElementById(`staff-row-${newId}`);
+        row?.scrollIntoView({ behavior: "smooth", block: "center" });
+        row?.querySelector("input")?.focus();
+      });
+    } catch (err) {
+      console.error(err);
+      alert("Couldn't add the new person. Please try again.");
+    }
   }
 
   const cellClass =
@@ -120,7 +136,7 @@ export default function StaffPage() {
             </thead>
             <tbody>
               {filtered.map((person) => (
-                <tr key={person.id} className="border-b border-slate-100 align-top hover:bg-slate-50">
+                <tr id={`staff-row-${person.id}`} key={person.id} className="border-b border-slate-100 align-top hover:bg-slate-50">
                   <td className="min-w-[200px] px-2 py-1">
                     <select
                       value={person.organisation_id}

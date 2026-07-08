@@ -212,7 +212,7 @@ begin
 
   if is_loggable then
     new.last_interaction_at = now();
-    if new_status_name like 'Call Attempted:%' then
+    if new_status_name like 'Call Attempted:%' or new_status_name = 'Email Requested' then
       new.call_attempts = coalesce(new.call_attempts, 0) + 1;
     end if;
   end if;

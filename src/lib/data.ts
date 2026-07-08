@@ -123,6 +123,20 @@ export async function upsertStaffMember(fields: Record<string, unknown>) {
   if (error) throw error;
 }
 
+// Explicit insert for creating a brand-new staff member (as opposed to
+// upsertStaffMember, which is used for editing an existing row). Returns the
+// new row's id so callers can scroll to / focus it.
+export async function addStaffMember(fields: Record<string, unknown>): Promise<string> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("staff")
+    .insert(fields)
+    .select("id")
+    .single();
+  if (error) throw error;
+  return data.id as string;
+}
+
 export async function deleteStaffMember(id: string) {
   const supabase = createClient();
   const { error } = await supabase.from("staff").delete().eq("id", id);
@@ -183,4 +197,29 @@ export async function updateCategoryColor(id: string, color: string) {
 export function googleVoiceCallUrl(phoneNumber: string): string {
   const cleaned = phoneNumber.trim();
   return `https://voice.google.com/u/0/calls?a=nc,${encodeURIComponent(cleaned)}`;
+}
+
+// Opens a URL in a genuine new browser window (not just a new tab) by
+// passing window features, which forces most browsers to pop out a window.
+export function openInNewWindow(url: string) {
+  const width = 1100;
+  const height = 850;
+  const left = window.screenX + Math.max(0, (window.outerWidth - width) / 2);
+  const top = window.screenY + Math.max(0, (window.outerHeight - height) / 2);
+  window.open(
+    url,
+    "_blank",
+    `noopener,noreferrer,width=${width},height=${height},left=${left},top=${top}`
+  );
+}
+
+// Builds the Google search URL for the "Research" button: searches for the
+// named person's role at the organisation on LinkedIn.
+export function researchSearchUrl(
+  orgName: string,
+  seniorityName: string,
+  departmentName: string
+): string {
+  const q = `"${orgName}" "${seniorityName} ${departmentName}" LinkedIn`;
+  return `https://www.google.com/search?q=${encodeURIComponent(q)}`;
 }
