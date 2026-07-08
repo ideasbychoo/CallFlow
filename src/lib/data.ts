@@ -6,12 +6,16 @@ import type {
   SeniorityLevel,
   Category,
   Country,
+  SourceType,
+  Source,
   StaffMember,
 } from "@/types";
 
 const ORG_SELECT = `
   *,
   category:categories(id, name, sort_order),
+  source_type:source_types(id, name, sort_order),
+  source:sources(id, name, website),
   office_locations(*),
   staff(*),
   status_history(id, status_id, changed_at)
@@ -34,15 +38,17 @@ export async function fetchSettingsLists(): Promise<{
   seniorityLevels: SeniorityLevel[];
   categories: Category[];
   countries: Country[];
+  sourceTypes: SourceType[];
 }> {
   const supabase = createClient();
-  const [statuses, departments, seniorityLevels, categories, countries] =
+  const [statuses, departments, seniorityLevels, categories, countries, sourceTypes] =
     await Promise.all([
       supabase.from("statuses").select("*").order("sort_order"),
       supabase.from("departments").select("*").order("sort_order"),
       supabase.from("seniority_levels").select("*").order("sort_order"),
       supabase.from("categories").select("*").order("sort_order"),
       supabase.from("countries").select("*").order("sort_order"),
+      supabase.from("source_types").select("*").order("sort_order"),
     ]);
 
   return {
@@ -51,6 +57,7 @@ export async function fetchSettingsLists(): Promise<{
     seniorityLevels: (seniorityLevels.data ?? []) as SeniorityLevel[],
     categories: (categories.data ?? []) as Category[],
     countries: (countries.data ?? []) as Country[],
+    sourceTypes: (sourceTypes.data ?? []) as SourceType[],
   };
 }
 
@@ -164,7 +171,8 @@ export type SettingsTable =
   | "departments"
   | "seniority_levels"
   | "categories"
-  | "countries";
+  | "countries"
+  | "source_types";
 
 export async function addSettingsItem(table: SettingsTable, name: string, sort_order: number) {
   const supabase = createClient();
@@ -218,6 +226,83 @@ export async function fetchAllStatusHistory(): Promise<
 export function isCallAttemptStatus(statusName: string | undefined | null): boolean {
   if (!statusName) return false;
   return statusName.startsWith("Call Attempted:") || statusName === "Email Requested";
+}
+
+// ============ Sources ============
+
+export async function fetchAllSources(): Promise<Source[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("sources")
+    .select("*, source_source_types(source_type:source_types(id, name, sort_order))")
+    .order("name");
+  if (error) throw error;
+  return (data ?? []).map((row: unknown) => {
+    const r = row as Source & {
+      source_source_types?: { source_type: SourceType }[];
+    };
+    return {
+      ...r,
+      source_types: (r.source_source_types ?? [])
+        .map((j) => j.source_type)
+        .filter(Boolean),
+    };
+  }) as Source[];
+}
+
+export async function createSource(fields: {
+  name: string;
+  website?: string | null;
+  source_type_ids: string[];
+}): Promise<string> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("sources")
+    .insert({ name: fields.name, website: fields.website ?? null })
+    .select("id")
+    .single();
+  if (error) throw error;
+  const sourceId = data.id as string;
+  if (fields.source_type_ids.length > 0) {
+    const { error: linkError } = await supabase.from("source_source_types").insert(
+      fields.source_type_ids.map((source_type_id) => ({
+        source_id: sourceId,
+        source_type_id,
+      }))
+    );
+    if (linkError) throw linkError;
+  }
+  return sourceId;
+}
+
+export async function updateSource(
+  id: string,
+  fields: { name?: string; website?: string | null }
+) {
+  const supabase = createClient();
+  const { error } = await supabase.from("sources").update(fields).eq("id", id);
+  if (error) throw error;
+}
+
+export async function setSourceTypes(sourceId: string, sourceTypeIds: string[]) {
+  const supabase = createClient();
+  const { error: deleteError } = await supabase
+    .from("source_source_types")
+    .delete()
+    .eq("source_id", sourceId);
+  if (deleteError) throw deleteError;
+  if (sourceTypeIds.length > 0) {
+    const { error: insertError } = await supabase.from("source_source_types").insert(
+      sourceTypeIds.map((source_type_id) => ({ source_id: sourceId, source_type_id }))
+    );
+    if (insertError) throw insertError;
+  }
+}
+
+export async function deleteSource(id: string) {
+  const supabase = createClient();
+  const { error } = await supabase.from("sources").delete().eq("id", id);
+  if (error) throw error;
 }
 
 export function googleVoiceCallUrl(phoneNumber: string): string {

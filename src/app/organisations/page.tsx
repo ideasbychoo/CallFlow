@@ -6,29 +6,35 @@ import { EditableText } from "@/components/EditableField";
 import {
   fetchOrganisations,
   fetchSettingsLists,
+  fetchAllSources,
   updateOrganisation,
   createOrganisation,
   deleteOrganisation,
 } from "@/lib/data";
-import type { Organisation, Status, Category, Country } from "@/types";
+import type { Organisation, Status, Category, Country, SourceType, Source } from "@/types";
 
 export default function OrganisationsPage() {
   const [orgs, setOrgs] = useState<Organisation[]>([]);
   const [statuses, setStatuses] = useState<Status[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [countries, setCountries] = useState<Country[]>([]);
+  const [sourceTypes, setSourceTypes] = useState<SourceType[]>([]);
+  const [sources, setSources] = useState<Source[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
 
   async function load() {
-    const [orgData, settings] = await Promise.all([
+    const [orgData, settings, sourcesData] = await Promise.all([
       fetchOrganisations(),
       fetchSettingsLists(),
+      fetchAllSources(),
     ]);
     setOrgs(orgData);
     setStatuses(settings.statuses);
     setCategories(settings.categories);
     setCountries(settings.countries);
+    setSourceTypes(settings.sourceTypes);
+    setSources(sourcesData);
     setLoading(false);
   }
 
@@ -43,6 +49,14 @@ export default function OrganisationsPage() {
   const sortedCountries = useMemo(
     () => [...countries].sort((a, b) => a.name.localeCompare(b.name)),
     [countries]
+  );
+  const sortedSourceTypes = useMemo(
+    () => [...sourceTypes].sort((a, b) => a.sort_order - b.sort_order),
+    [sourceTypes]
+  );
+  const sortedSources = useMemo(
+    () => [...sources].sort((a, b) => a.name.localeCompare(b.name)),
+    [sources]
   );
   const sortedStatuses = useMemo(
     () => [...statuses].sort((a, b) => a.sort_order - b.sort_order),
@@ -109,6 +123,7 @@ export default function OrganisationsPage() {
               <tr>
                 {[
                   "Name", "Category", "Country", "Similar to", "Angle", "Status",
+                  "Source Type", "Source",
                   "Date spotted", "Website", "Team page", "Annual report", "Impact report",
                   "Org LinkedIn", "Beneficiaries", "Workers", "Notes",
                   "Staff", "Call attempts", "Recent interaction", "",
@@ -163,6 +178,30 @@ export default function OrganisationsPage() {
                     >
                       <option value="" disabled>—</option>
                       {sortedStatuses.map((s) => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="min-w-[140px] px-2 py-1">
+                    <select
+                      value={org.source_type_id ?? ""}
+                      onChange={(e) => save(org.id, { source_type_id: e.target.value || null })}
+                      className={cellClass}
+                    >
+                      <option value="">—</option>
+                      {sortedSourceTypes.map((t) => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="min-w-[160px] px-2 py-1">
+                    <select
+                      value={org.source_id ?? ""}
+                      onChange={(e) => save(org.id, { source_id: e.target.value || null })}
+                      className={cellClass}
+                    >
+                      <option value="">—</option>
+                      {sortedSources.map((s) => (
                         <option key={s.id} value={s.id}>{s.name}</option>
                       ))}
                     </select>

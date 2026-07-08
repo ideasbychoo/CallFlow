@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import SettingsList from "@/components/SettingsList";
 import { fetchSettingsLists } from "@/lib/data";
-import type { Status, Department, SeniorityLevel, Category, Country } from "@/types";
+import type { Status, Department, SeniorityLevel, Category, Country, SourceType } from "@/types";
 
 export default function SettingsPage() {
   const [statuses, setStatuses] = useState<Status[]>([]);
@@ -11,6 +11,7 @@ export default function SettingsPage() {
   const [seniorityLevels, setSeniorityLevels] = useState<SeniorityLevel[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [countries, setCountries] = useState<Country[]>([]);
+  const [sourceTypes, setSourceTypes] = useState<SourceType[]>([]);
   const [loading, setLoading] = useState(true);
 
   async function load() {
@@ -20,6 +21,7 @@ export default function SettingsPage() {
     setSeniorityLevels(settings.seniorityLevels);
     setCategories(settings.categories);
     setCountries(settings.countries);
+    setSourceTypes(settings.sourceTypes);
     setLoading(false);
   }
 
@@ -69,6 +71,12 @@ export default function SettingsPage() {
         items={countries}
         onChanged={load}
         sortAlphabetically
+      />
+      <SettingsList
+        title="Source Types"
+        table="source_types"
+        items={sourceTypes}
+        onChanged={load}
       />
     </div>
   );

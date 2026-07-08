@@ -88,6 +88,15 @@ export default function Sidebar({ statuses }: { statuses: Status[] }) {
         </Link>
 
         <Link
+          href="/sources"
+          className={`block text-lg font-semibold ${
+            pathname === "/sources" ? "text-slate-900" : "text-slate-700 hover:text-slate-900"
+          }`}
+        >
+          Sources
+        </Link>
+
+        <Link
           href="/settings"
           className={`mt-6 block text-lg font-semibold ${
             pathname === "/settings" ? "text-slate-900" : "text-slate-700 hover:text-slate-900"

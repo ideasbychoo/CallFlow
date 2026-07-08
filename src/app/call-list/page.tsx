@@ -7,6 +7,7 @@ import MultiSelectFilter from "@/components/MultiSelectFilter";
 import {
   fetchOrganisations,
   fetchSettingsLists,
+  fetchAllSources,
   createOrganisation,
 } from "@/lib/data";
 import type {
@@ -16,6 +17,8 @@ import type {
   SeniorityLevel,
   Category,
   Country,
+  SourceType,
+  Source,
   SortField,
   SortDirection,
 } from "@/types";
@@ -30,6 +33,8 @@ function CallListInner() {
   const [seniorityLevels, setSeniorityLevels] = useState<SeniorityLevel[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [countries, setCountries] = useState<Country[]>([]);
+  const [sourceTypes, setSourceTypes] = useState<SourceType[]>([]);
+  const [sources, setSources] = useState<Source[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [search, setSearch] = useState("");
@@ -42,9 +47,10 @@ function CallListInner() {
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
   async function load() {
-    const [orgData, settings] = await Promise.all([
+    const [orgData, settings, sourcesData] = await Promise.all([
       fetchOrganisations(),
       fetchSettingsLists(),
+      fetchAllSources(),
     ]);
     setOrgs(orgData);
     setStatuses(settings.statuses);
@@ -52,6 +58,8 @@ function CallListInner() {
     setSeniorityLevels(settings.seniorityLevels);
     setCategories(settings.categories);
     setCountries(settings.countries);
+    setSourceTypes(settings.sourceTypes);
+    setSources(sourcesData);
     setLoading(false);
   }
 
@@ -265,6 +273,8 @@ function CallListInner() {
             seniorityLevels={seniorityLevels}
             categories={categories}
             countries={countries}
+            sourceTypes={sourceTypes}
+            sources={sources}
             onChanged={load}
           />
         ))

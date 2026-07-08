@@ -39,6 +39,29 @@ create table countries (
   created_at timestamptz not null default now()
 );
 
+create table source_types (
+  id uuid primary key default gen_random_uuid(),
+  name text not null unique,
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now()
+);
+
+-- A Source is a specific place an organisation was found (e.g. "Third Sector
+-- Charity Awards", "NAVCA"). Each Source must have at least one Source Type
+-- (enforced in the app) and can optionally have a Website.
+create table sources (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  website text,
+  created_at timestamptz not null default now()
+);
+
+create table source_source_types (
+  source_id uuid not null references sources(id) on delete cascade,
+  source_type_id uuid not null references source_types(id) on delete cascade,
+  primary key (source_id, source_type_id)
+);
+
 -- ============ CORE TABLES ============
 
 create table organisations (
@@ -57,6 +80,8 @@ create table organisations (
   beneficiaries integer,
   workers integer,
   status_id uuid references statuses(id) on delete set null,
+  source_type_id uuid references source_types(id) on delete set null,
+  source_id uuid references sources(id) on delete set null,
   date_spotted date not null default current_date,
   call_attempts integer not null default 0,
   last_interaction_at timestamptz,
@@ -69,6 +94,7 @@ create table office_locations (
   organisation_id uuid not null references organisations(id) on delete cascade,
   location_name text not null,
   phone_number text,
+  website_url text,
   availability text,
   created_at timestamptz not null default now()
 );
@@ -101,6 +127,8 @@ create table status_history (
 
 create index idx_organisations_status on organisations(status_id);
 create index idx_organisations_category on organisations(category_id);
+create index idx_organisations_source_type on organisations(source_type_id);
+create index idx_organisations_source on organisations(source_id);
 create index idx_office_locations_org on office_locations(organisation_id);
 create index idx_staff_org on staff(organisation_id);
 create index idx_status_history_org on status_history(organisation_id, changed_at desc);
@@ -139,6 +167,12 @@ insert into seniority_levels (name, sort_order) values
   ('Head / Director', 1),
   ('Manager', 2);
 
+-- ============ SEED DATA: SOURCE TYPES ============
+
+insert into source_types (name, sort_order) values
+  ('Awards', 1),
+  ('Membership Body', 2);
+
 -- ============ ROW LEVEL SECURITY ============
 -- The app's server-side API routes use the service_role key (bypasses RLS).
 -- The browser only ever uses the anon key through an authenticated session,
@@ -149,6 +183,9 @@ alter table departments enable row level security;
 alter table seniority_levels enable row level security;
 alter table categories enable row level security;
 alter table countries enable row level security;
+alter table source_types enable row level security;
+alter table sources enable row level security;
+alter table source_source_types enable row level security;
 alter table organisations enable row level security;
 alter table office_locations enable row level security;
 alter table staff enable row level security;
@@ -163,6 +200,12 @@ create policy "Authenticated users can do everything - seniority_levels" on seni
 create policy "Authenticated users can do everything - categories" on categories
   for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 create policy "Authenticated users can do everything - countries" on countries
+  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "Authenticated users can do everything - source_types" on source_types
+  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "Authenticated users can do everything - sources" on sources
+  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "Authenticated users can do everything - source_source_types" on source_source_types
   for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 create policy "Authenticated users can do everything - organisations" on organisations
   for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');

@@ -13,6 +13,8 @@ import type {
   SeniorityLevel,
   Category,
   Country,
+  SourceType,
+  Source,
   StaffMember,
 } from "@/types";
 import {
@@ -35,6 +37,8 @@ export default function OrganisationCard({
   seniorityLevels,
   categories,
   countries,
+  sourceTypes,
+  sources,
   defaultExpanded = false,
   onChanged,
 }: {
@@ -44,6 +48,8 @@ export default function OrganisationCard({
   seniorityLevels: SeniorityLevel[];
   categories: Category[];
   countries: Country[];
+  sourceTypes: SourceType[];
+  sources: Source[];
   defaultExpanded?: boolean;
   onChanged: () => void;
 }) {
@@ -400,8 +406,70 @@ export default function OrganisationCard({
                         placeholder="e.g. Mon–Fri 9am–1pm"
                         className="mt-1 w-full rounded border border-transparent bg-transparent text-xs text-slate-500 hover:border-slate-200 focus:border-slate-400 focus:bg-white focus:outline-none"
                       />
+                      <div className="mt-1 flex items-center gap-2">
+                        {loc.website_url && (
+                          <a
+                            href={loc.website_url}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              openInNewWindow(loc.website_url!);
+                            }}
+                            className="truncate text-xs text-blue-600 hover:underline"
+                          >
+                            {loc.website_url}
+                          </a>
+                        )}
+                      </div>
+                      <EditableText
+                        value={loc.website_url}
+                        onSave={(v) =>
+                          upsertOfficeLocation({
+                            id: loc.id,
+                            organisation_id: org.id,
+                            location_name: loc.location_name,
+                            phone_number: loc.phone_number,
+                            availability: loc.availability,
+                            website_url: v,
+                          }).then(onChanged)
+                        }
+                        placeholder="Location website URL"
+                        className="w-full rounded border border-transparent bg-transparent text-xs hover:border-slate-200 focus:border-slate-400 focus:bg-white focus:outline-none"
+                      />
                     </div>
                   ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <div className="font-medium text-slate-700">Source Type</div>
+                  <select
+                    value={org.source_type_id ?? ""}
+                    onChange={(e) => save({ source_type_id: e.target.value || null })}
+                    className="w-full rounded border border-transparent bg-transparent text-xs hover:border-slate-200 focus:border-slate-400 focus:outline-none"
+                  >
+                    <option value="">—</option>
+                    {[...sourceTypes]
+                      .sort((a, b) => a.sort_order - b.sort_order)
+                      .map((t) => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
+                  </select>
+                </div>
+                <div>
+                  <div className="font-medium text-slate-700">Source</div>
+                  <select
+                    value={org.source_id ?? ""}
+                    onChange={(e) => save({ source_id: e.target.value || null })}
+                    className="w-full rounded border border-transparent bg-transparent text-xs hover:border-slate-200 focus:border-slate-400 focus:outline-none"
+                  >
+                    <option value="">—</option>
+                    {[...sources]
+                      .sort((a, b) => a.name.localeCompare(b.name))
+                      .map((s) => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                  </select>
                 </div>
               </div>
 

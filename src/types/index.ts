@@ -29,11 +29,26 @@ export type Country = {
   sort_order: number;
 };
 
+export type SourceType = {
+  id: string;
+  name: string;
+  sort_order: number;
+};
+
+export type Source = {
+  id: string;
+  name: string;
+  website: string | null;
+  created_at: string;
+  source_types?: SourceType[]; // joined via source_source_types
+};
+
 export type OfficeLocation = {
   id: string;
   organisation_id: string;
   location_name: string;
   phone_number: string | null;
+  website_url: string | null;
   availability: string | null;
 };
 
@@ -78,6 +93,8 @@ export type Organisation = {
   beneficiaries: number | null;
   workers: number | null;
   status_id: string | null;
+  source_type_id: string | null;
+  source_id: string | null;
   date_spotted: string;
   call_attempts: number;
   last_interaction_at: string | null;
@@ -89,6 +106,8 @@ export type Organisation = {
   office_locations?: OfficeLocation[];
   staff?: StaffMember[];
   status_history?: StatusHistoryEntry[];
+  source_type?: SourceType | null;
+  source?: Source | null;
 };
 
 export type SortField = "date_spotted" | "last_interaction_at" | "name";
