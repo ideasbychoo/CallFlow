@@ -166,7 +166,7 @@ export default function OrganisationsPage() {
                   "Source Type", "Source",
                   "Date spotted", "Website", "Team page", "Annual report", "Impact report",
                   "Org LinkedIn", "Beneficiaries", "Workers", "Notes",
-                  "Staff", "Call attempts", "Recent interaction", "",
+                  "Staff", "Call attempts", "Recent interaction", "Added by", "",
                 ].map((h) => (
                   <th key={h} className="whitespace-nowrap border-b border-slate-200 px-2 py-2 font-medium">
                     {h}
@@ -302,6 +302,9 @@ export default function OrganisationsPage() {
                   <td className="px-2 py-1 text-center text-slate-500">{org.call_attempts}</td>
                   <td className="whitespace-nowrap px-2 py-1 text-slate-500">
                     {org.last_interaction_at ? format(new Date(org.last_interaction_at), "d MMM yyyy") : "—"}
+                  </td>
+                  <td className="min-w-[160px] whitespace-nowrap px-2 py-1 text-slate-400">
+                    {org.created_by ?? "—"}
                   </td>
                   <td className="px-2 py-1">
                     <button

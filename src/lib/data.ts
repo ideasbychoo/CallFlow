@@ -79,13 +79,22 @@ export async function updateOrganisation(
   if (error) throw error;
 }
 
+// Returns a label identifying the logged-in person, for created_by tracking.
+// Falls back to a generic label if the session can't be read for some reason.
+async function getCurrentUserLabel(): Promise<string> {
+  const supabase = createClient();
+  const { data } = await supabase.auth.getUser();
+  return data.user?.email ?? "unknown-user";
+}
+
 export async function createOrganisation(
   fields: Partial<Organisation>
 ): Promise<string> {
   const supabase = createClient();
+  const created_by = fields.created_by ?? (await getCurrentUserLabel());
   const { data, error } = await supabase
     .from("organisations")
-    .insert(fields)
+    .insert({ ...fields, created_by })
     .select("id")
     .single();
   if (error) throw error;
@@ -141,9 +150,10 @@ export async function upsertStaffMember(fields: Record<string, unknown>) {
 // new row's id so callers can scroll to / focus it.
 export async function addStaffMember(fields: Record<string, unknown>): Promise<string> {
   const supabase = createClient();
+  const created_by = (fields.created_by as string | undefined) ?? (await getCurrentUserLabel());
   const { data, error } = await supabase
     .from("staff")
-    .insert(fields)
+    .insert({ ...fields, created_by })
     .select("id")
     .single();
   if (error) throw error;

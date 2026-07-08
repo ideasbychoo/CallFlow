@@ -7,6 +7,10 @@ function checkAuth(req: NextRequest): boolean {
   return Boolean(token) && token === process.env.CALLFLOW_INGEST_API_KEY;
 }
 
+function looksLikeUrl(value: string): boolean {
+  return /^https?:\/\//i.test(value.trim());
+}
+
 async function findOrCreateLookup(
   supabase: ReturnType<typeof createAdminClient>,
   table: "departments" | "seniority_levels",
@@ -41,9 +45,10 @@ async function findOrCreateLookup(
 
 // Expected JSON body:
 // {
+//   "created_by": "agent:claude-code-prospecting-routine",  // required -- see README
 //   "organisation_id": "uuid"        // either this, or...
 //   "organisation_name": "Acme Charity",  // ...this, to look the org up by name
-//   "staff": [ { full_name, department, seniority, email, direct_dial, linkedin, background_notes, availability_notes } ]
+//   "staff": [ { full_name, department, seniority, email, direct_dial, linkedin, background_notes, bio, bio_url, availability_notes } ]
 // }
 export async function POST(req: NextRequest) {
   if (!checkAuth(req)) {
@@ -51,7 +56,14 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { organisation_id, organisation_name, staff = [] } = body ?? {};
+  const { organisation_id, organisation_name, staff = [], created_by } = body ?? {};
+  const warnings: string[] = [];
+
+  if (!created_by || !String(created_by).trim()) {
+    warnings.push(
+      "No created_by was supplied -- please always identify the calling agent (e.g. 'agent:claude-code-prospecting-routine') for transparency."
+    );
+  }
 
   const supabase = createAdminClient();
 
@@ -77,16 +89,14 @@ export async function POST(req: NextRequest) {
 
   for (const person of staff) {
     if (!person?.full_name) continue;
-    const department_id = await findOrCreateLookup(
-      supabase,
-      "departments",
-      person.department
-    );
-    const seniority_id = await findOrCreateLookup(
-      supabase,
-      "seniority_levels",
-      person.seniority
-    );
+    const department_id = await findOrCreateLookup(supabase, "departments", person.department);
+    const seniority_id = await findOrCreateLookup(supabase, "seniority_levels", person.seniority);
+
+    let personLinkedin: string | null = person.linkedin ?? null;
+    if (personLinkedin && !looksLikeUrl(personLinkedin)) {
+      warnings.push(`staff "${person.full_name}": linkedin field ("${personLinkedin}") doesn't look like a URL -- left blank instead of storing it incorrectly.`);
+      personLinkedin = null;
+    }
 
     const { data, error } = await supabase
       .from("staff")
@@ -98,10 +108,13 @@ export async function POST(req: NextRequest) {
         job_title: person.job_title ?? null,
         email: person.email ?? null,
         direct_dial: person.direct_dial ?? null,
-        linkedin: person.linkedin ?? null,
+        linkedin: personLinkedin,
         background_notes: person.background_notes ?? null,
+        bio: person.bio ?? null,
+        bio_url: person.bio_url ?? null,
         availability_notes: person.availability_notes ?? null,
         conversation_notes: person.conversation_notes ?? null,
+        created_by: created_by ?? null,
       })
       .select("id")
       .single();
@@ -110,5 +123,5 @@ export async function POST(req: NextRequest) {
     inserted.push(data.id as string);
   }
 
-  return NextResponse.json({ organisation_id: orgId, staff_ids: inserted });
+  return NextResponse.json({ organisation_id: orgId, staff_ids: inserted, warnings });
 }

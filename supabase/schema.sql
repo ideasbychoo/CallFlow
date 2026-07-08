@@ -95,6 +95,7 @@ create table organisations (
   date_spotted date not null default current_date,
   call_attempts integer not null default 0,
   last_interaction_at timestamptz,
+  created_by text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -124,6 +125,7 @@ create table staff (
   bio_url text,
   availability_notes text,
   conversation_notes text,
+  created_by text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

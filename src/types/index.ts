@@ -82,6 +82,7 @@ export type StaffMember = {
   bio_url: string | null;
   availability_notes: string | null;
   conversation_notes: string | null;
+  created_by: string | null;
 };
 
 export type StatusHistoryEntry = {
@@ -114,6 +115,7 @@ export type Organisation = {
   date_spotted: string;
   call_attempts: number;
   last_interaction_at: string | null;
+  created_by: string | null;
   created_at: string;
   updated_at: string;
 

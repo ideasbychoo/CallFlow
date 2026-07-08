@@ -221,6 +221,11 @@ export default function OrganisationCard({
                 className="inline w-24 rounded border border-transparent bg-transparent text-right text-xs hover:border-slate-200 focus:border-slate-400 focus:bg-white focus:outline-none"
               />
             </div>
+            {org.created_by && (
+              <div className="text-slate-400" title="Who or what added this record">
+                Added by: {org.created_by}
+              </div>
+            )}
             <div>
               Recent interaction:{" "}
               {org.last_interaction_at
