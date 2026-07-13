@@ -73,8 +73,17 @@ export function matchesDepartmentStaffFilter(
 }
 
 export function countStaffInDepartment(
-  staff: { department_id: string | null }[] | undefined,
+  staff: { department_id: string | null; full_name?: string | null }[] | undefined,
   departmentId: string
 ): number {
-  return (staff ?? []).filter((p) => p.department_id === departmentId).length;
+  return (staff ?? []).filter(
+    (p) => p.department_id === departmentId && isIdentifiedStaffMember(p)
+  ).length;
+}
+
+// A staff row created via "+ Add person" but never actually filled in
+// shouldn't count as an "identified" staff member for filtering purposes.
+export function isIdentifiedStaffMember(person: { full_name?: string | null }): boolean {
+  const name = person.full_name?.trim().toLowerCase() ?? "";
+  return name !== "" && name !== "new person";
 }

@@ -420,11 +420,27 @@ export function googleVoiceCallUrl(phoneNumber: string): string {
 // Opens a URL in a genuine new browser window (not just a new tab) by
 // passing window features, which forces most browsers to pop out a window.
 export function openInNewWindow(url: string) {
-  // Deliberately no width/height/left/top features here: as soon as you pass
-  // sizing features to window.open, Chrome renders the result as a chromeless
-  // popup (no address bar, no tab strip). Omitting them gives a normal browser
-  // window, so links to a prospect's website can have extra tabs opened in them.
-  window.open(url, "_blank", "noopener,noreferrer");
+  // window.open() can't reliably force a real, fully-chromed browser window in
+  // modern Chrome: with no size features it opens a tab, and with any size
+  // feature it opens a stripped-down popup with no tab strip. The one thing
+  // that *does* reliably open a normal new window (the same as a user
+  // Shift-clicking a link) is a native anchor click with shiftKey set, so we
+  // build one temporarily and dispatch that.
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.target = "_blank";
+  anchor.rel = "noopener noreferrer";
+  anchor.style.display = "none";
+  document.body.appendChild(anchor);
+  anchor.dispatchEvent(
+    new MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+      view: window,
+      shiftKey: true,
+    })
+  );
+  document.body.removeChild(anchor);
 }
 
 // Builds the Google search URL for the "Research" button: searches for the

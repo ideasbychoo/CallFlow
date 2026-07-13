@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { format, formatDistanceToNow } from "date-fns";
+import { format, formatDistanceToNow, parseISO } from "date-fns";
 import { EditableText } from "./EditableField";
 import StatusDropdown from "./StatusDropdown";
 import CategoryChip from "./CategoryChip";
@@ -229,10 +229,9 @@ export default function OrganisationCard({
             </div>
             <div>
               Spotted:{" "}
-              <EditableText
+              <SpottedDateField
                 value={org.date_spotted}
                 onSave={(v) => save({ date_spotted: v })}
-                className="inline w-24 rounded border border-transparent bg-transparent text-right text-xs hover:border-slate-200 focus:border-slate-400 focus:bg-white focus:outline-none"
               />
             </div>
             {org.created_by && (
@@ -620,6 +619,41 @@ export default function OrganisationCard({
         </Modal>
       )}
     </div>
+  );
+}
+
+function SpottedDateField({
+  value,
+  onSave,
+}: {
+  value: string;
+  onSave: (v: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+
+  if (editing) {
+    return (
+      <input
+        type="date"
+        autoFocus
+        defaultValue={value}
+        onBlur={(e) => {
+          if (e.target.value) onSave(e.target.value);
+          setEditing(false);
+        }}
+        className="inline w-32 rounded border border-slate-300 bg-white px-1 py-0.5 text-right text-xs text-slate-800 focus:border-slate-400 focus:outline-none"
+      />
+    );
+  }
+
+  return (
+    <button
+      onClick={() => setEditing(true)}
+      title="Click to change"
+      className="rounded border border-transparent bg-transparent px-1 py-0.5 text-right text-xs text-slate-500 hover:border-slate-200 hover:bg-white"
+    >
+      {value ? format(parseISO(value), "d MMMM yyyy") : "—"}
+    </button>
   );
 }
 

@@ -30,7 +30,7 @@ export default function Modal({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="relative w-full max-w-3xl">
+      <div className="relative w-[92vw]">
         <button
           onClick={onClose}
           aria-label="Close"

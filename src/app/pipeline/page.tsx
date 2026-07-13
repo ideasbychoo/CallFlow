@@ -14,6 +14,7 @@ import DepartmentStaffFilter, {
   EMPTY_DEPARTMENT_STAFF_FILTER,
   matchesDepartmentStaffFilter,
   countStaffInDepartment,
+  isIdentifiedStaffMember,
   type DepartmentStaffFilterValue,
 } from "@/components/DepartmentStaffFilter";
 import { fetchOrganisations, fetchSettingsLists, updateOrganisation } from "@/lib/data";
@@ -78,7 +79,7 @@ export default function PipelinePage() {
         return false;
       if (countryFilter.length > 0 && (!o.country || !countryFilter.includes(o.country)))
         return false;
-      const count = (o.staff ?? []).length;
+      const count = (o.staff ?? []).filter(isIdentifiedStaffMember).length;
       if (min !== null && count < min) return false;
       if (max !== null && count > max) return false;
       if (

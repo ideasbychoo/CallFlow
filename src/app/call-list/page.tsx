@@ -8,6 +8,7 @@ import DepartmentStaffFilter, {
   EMPTY_DEPARTMENT_STAFF_FILTER,
   matchesDepartmentStaffFilter,
   countStaffInDepartment,
+  isIdentifiedStaffMember,
   type DepartmentStaffFilterValue,
 } from "@/components/DepartmentStaffFilter";
 import {
@@ -34,7 +35,7 @@ import type {
 
 function CallListInner() {
   const searchParams = useSearchParams();
-  const statusFilter = searchParams.get("status");
+  const urlStatus = searchParams.get("status");
 
   const [orgs, setOrgs] = useState<Organisation[]>([]);
   const [statuses, setStatuses] = useState<Status[]>([]);
@@ -50,6 +51,9 @@ function CallListInner() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string[]>(
+    urlStatus ? [urlStatus] : []
+  );
   const [categoryFilter, setCategoryFilter] = useState<string[]>([]);
   const [countryFilter, setCountryFilter] = useState<string[]>([]);
   const [segmentFilter, setSegmentFilter] = useState<string[]>([]);
@@ -99,6 +103,14 @@ function CallListInner() {
     [countries]
   );
 
+  const sortedStatusOptions = useMemo(
+    () =>
+      [...statuses]
+        .sort((a, b) => a.sort_order - b.sort_order)
+        .map((s) => ({ value: s.id, label: s.name })),
+    [statuses]
+  );
+
   const sortedCategoryOptions = useMemo(
     () =>
       [...categories]
@@ -131,8 +143,8 @@ function CallListInner() {
     if (phonePresentOnly) {
       result = result.filter(hasPhoneNumber);
     }
-    if (statusFilter) {
-      result = result.filter((o) => o.status_id === statusFilter);
+    if (statusFilter.length > 0) {
+      result = result.filter((o) => o.status_id && statusFilter.includes(o.status_id));
     }
     if (categoryFilter.length > 0) {
       result = result.filter(
@@ -151,7 +163,7 @@ function CallListInner() {
     const max = staffMax.trim() ? parseInt(staffMax, 10) : null;
     if (min !== null || max !== null) {
       result = result.filter((o) => {
-        const count = (o.staff ?? []).length;
+        const count = (o.staff ?? []).filter(isIdentifiedStaffMember).length;
         if (min !== null && count < min) return false;
         if (max !== null && count > max) return false;
         return true;
@@ -205,16 +217,16 @@ function CallListInner() {
     load();
   }
 
-  const activeStatusName = statusFilter
-    ? statuses.find((s) => s.id === statusFilter)?.name
-    : null;
+  const activeStatusNames = statusFilter
+    .map((id) => statuses.find((s) => s.id === id)?.name)
+    .filter((name): name is string => Boolean(name));
 
   return (
     <div className="mx-auto max-w-6xl px-8 pb-8">
       <div className="sticky top-0 z-10 -mx-8 bg-slate-50 px-8 pb-4 pt-8">
         <div className="mb-6 flex items-center justify-between">
           <h1 className="text-3xl font-semibold text-slate-800">
-            Call List{activeStatusName ? ` · ${activeStatusName}` : ""}
+            Call List{activeStatusNames.length > 0 ? ` · ${activeStatusNames.join(", ")}` : ""}
           </h1>
           <button
             onClick={handleAddOrganisation}
@@ -256,6 +268,12 @@ function CallListInner() {
 
         <div className="flex flex-wrap items-center gap-3">
           <span className="text-sm text-slate-500">Filters:</span>
+          <MultiSelectFilter
+            label="Status"
+            options={sortedStatusOptions}
+            selected={statusFilter}
+            onChange={setStatusFilter}
+          />
           <MultiSelectFilter
             label="Category"
             options={sortedCategoryOptions}
