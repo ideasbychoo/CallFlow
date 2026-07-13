@@ -123,5 +123,12 @@ export async function POST(req: NextRequest) {
     inserted.push(data.id as string);
   }
 
+  if (inserted.length > 0) {
+    await supabase
+      .from("organisations")
+      .update({ backfill_checked_at: new Date().toISOString() })
+      .eq("id", orgId);
+  }
+
   return NextResponse.json({ organisation_id: orgId, staff_ids: inserted, warnings });
 }

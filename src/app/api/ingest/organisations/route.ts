@@ -147,6 +147,7 @@ async function findOrCreateSource(
 const SELECT_FOR_AGENTS = `
   id, name, country, similar_to_client, angle, notes, website, team_page,
   annual_report, impact_report, linkedin, beneficiaries, workers, created_by, created_at,
+  backfill_checked_at,
   category:categories(name),
   segment:segments(name),
   source_type:source_types(name),
@@ -194,11 +195,19 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  type Row = { segment: unknown; staff: unknown[] };
+  type Row = { segment: unknown; staff: unknown[]; backfill_checked_at: string | null };
   let rows = (data ?? []) as unknown as Row[];
 
   if (gapsOnly) {
     rows = rows.filter((row) => !row.segment || (row.staff ?? []).length === 0);
+    // Never-checked orgs first, then oldest-checked -- so the backfill routine
+    // doesn't keep re-researching the same handful of genuinely-unfindable
+    // organisations every single day.
+    rows = rows.sort((a, b) => {
+      const aTime = a.backfill_checked_at ? new Date(a.backfill_checked_at).getTime() : -Infinity;
+      const bTime = b.backfill_checked_at ? new Date(b.backfill_checked_at).getTime() : -Infinity;
+      return aTime - bTime;
+    });
   }
 
   return NextResponse.json({ count: rows.length, organisations: rows });
@@ -226,27 +235,31 @@ export async function POST(req: NextRequest) {
   }
 
   const supabase = createAdminClient();
+  const provided = new Set(Object.keys(organisation ?? {}));
 
-  const category_id = await findOrCreateLookup(supabase, "categories", organisation.category);
-  const { id: segment_id, warning: segmentWarning } = await lookupSegmentStrict(
-    supabase,
-    organisation.segment
-  );
-  if (segmentWarning) warnings.push(segmentWarning);
+  // Lookups are only resolved (and only touched on update) when the caller
+  // actually provided the corresponding raw field -- otherwise an update
+  // call that's only adding e.g. a phone number would silently wipe out an
+  // already-set category/segment/source by resolving an absent field to null.
+  const category_id = provided.has("category")
+    ? await findOrCreateLookup(supabase, "categories", organisation.category)
+    : undefined;
 
-  const source_type_id = await findOrCreateLookup(
-    supabase,
-    "source_types",
-    organisation.source_type
-  );
-  const source_id = await findOrCreateSource(
-    supabase,
-    organisation.source,
-    source_type_id,
-    organisation.source_website
-  );
+  let segment_id: string | null | undefined;
+  if (provided.has("segment")) {
+    const result = await lookupSegmentStrict(supabase, organisation.segment);
+    segment_id = result.id;
+    if (result.warning) warnings.push(result.warning);
+  }
 
-  let orgLinkedin: string | null = organisation.linkedin ?? null;
+  const source_type_id = provided.has("source_type")
+    ? await findOrCreateLookup(supabase, "source_types", organisation.source_type)
+    : undefined;
+  const source_id = provided.has("source")
+    ? await findOrCreateSource(supabase, organisation.source, source_type_id ?? null, organisation.source_website)
+    : undefined;
+
+  let orgLinkedin: string | null | undefined = provided.has("linkedin") ? organisation.linkedin ?? null : undefined;
   if (orgLinkedin && !looksLikeUrl(orgLinkedin)) {
     warnings.push(`organisation.linkedin ("${orgLinkedin}") doesn't look like a URL -- left blank instead of storing it incorrectly.`);
     orgLinkedin = null;
@@ -259,44 +272,58 @@ export async function POST(req: NextRequest) {
     .ilike("name", organisation.name.trim())
     .maybeSingle();
 
-  const orgFields = {
-    name: organisation.name,
-    category_id,
-    segment_id,
-    source_type_id,
-    source_id,
-    country: organisation.country ?? null,
-    similar_to_client: organisation.similar_to_client ?? null,
-    angle: organisation.angle ?? null,
-    notes: organisation.notes ?? null,
-    website: organisation.website ?? null,
-    team_page: organisation.team_page ?? null,
-    annual_report: organisation.annual_report ?? null,
-    impact_report: organisation.impact_report ?? null,
-    linkedin: orgLinkedin,
-    beneficiaries: organisation.beneficiaries ?? null,
-    workers: organisation.workers ?? null,
-    created_by: created_by ?? null,
-    // date_spotted intentionally omitted -- always defaults to today's date.
-  };
-
   let organisationId: string;
 
   if (existingOrg) {
     organisationId = existingOrg.id as string;
-    // Don't overwrite created_by on an update -- keep whoever originally created it.
-    const { created_by: _omit, ...updateFields } = orgFields;
-    void _omit;
+
+    // Partial update: only include fields the caller actually provided, so
+    // e.g. a backfill call that's only adding staff/a phone number doesn't
+    // null out fields it simply didn't mention.
+    const updateFields: Record<string, unknown> = { backfill_checked_at: new Date().toISOString() };
+    if (category_id !== undefined) updateFields.category_id = category_id;
+    if (segment_id !== undefined) updateFields.segment_id = segment_id;
+    if (source_type_id !== undefined) updateFields.source_type_id = source_type_id;
+    if (source_id !== undefined) updateFields.source_id = source_id;
+    if (orgLinkedin !== undefined) updateFields.linkedin = orgLinkedin;
+    for (const key of [
+      "country", "similar_to_client", "angle", "notes", "website",
+      "team_page", "annual_report", "impact_report", "beneficiaries", "workers",
+    ]) {
+      if (provided.has(key)) updateFields[key] = organisation[key] ?? null;
+    }
+
     const { error } = await supabase
       .from("organisations")
       .update(updateFields)
       .eq("id", organisationId);
     if (error) throw error;
-    warnings.push(`"${organisation.name}" already existed -- updated the existing record instead of creating a duplicate.`);
+    warnings.push(`"${organisation.name}" already existed -- updated the existing record (only the fields you provided) instead of creating a duplicate.`);
   } else {
+    const insertFields = {
+      name: organisation.name,
+      category_id: category_id ?? null,
+      segment_id: segment_id ?? null,
+      source_type_id: source_type_id ?? null,
+      source_id: source_id ?? null,
+      country: organisation.country ?? null,
+      similar_to_client: organisation.similar_to_client ?? null,
+      angle: organisation.angle ?? null,
+      notes: organisation.notes ?? null,
+      website: organisation.website ?? null,
+      team_page: organisation.team_page ?? null,
+      annual_report: organisation.annual_report ?? null,
+      impact_report: organisation.impact_report ?? null,
+      linkedin: orgLinkedin ?? null,
+      beneficiaries: organisation.beneficiaries ?? null,
+      workers: organisation.workers ?? null,
+      created_by: created_by ?? null,
+      backfill_checked_at: new Date().toISOString(),
+      // date_spotted intentionally omitted -- always defaults to today's date.
+    };
     const { data: created, error } = await supabase
       .from("organisations")
-      .insert(orgFields)
+      .insert(insertFields)
       .select("id")
       .single();
     if (error) throw error;

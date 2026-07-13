@@ -96,6 +96,7 @@ create table organisations (
   call_attempts integer not null default 0,
   last_interaction_at timestamptz,
   created_by text,
+  backfill_checked_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -151,6 +152,7 @@ create index idx_organisations_category on organisations(category_id);
 create index idx_organisations_segment on organisations(segment_id);
 create index idx_organisations_source_type on organisations(source_type_id);
 create index idx_organisations_source on organisations(source_id);
+create index idx_organisations_backfill_checked on organisations(backfill_checked_at);
 create index idx_office_locations_org on office_locations(organisation_id);
 create index idx_staff_org on staff(organisation_id);
 create index idx_status_history_org on status_history(organisation_id, changed_at desc);
