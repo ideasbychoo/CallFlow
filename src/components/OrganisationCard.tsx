@@ -6,6 +6,7 @@ import { EditableText } from "./EditableField";
 import StatusDropdown from "./StatusDropdown";
 import CategoryChip from "./CategoryChip";
 import CountryFlag from "./CountryFlag";
+import Modal from "./Modal";
 import type {
   Organisation,
   Status,
@@ -46,6 +47,7 @@ export default function OrganisationCard({
   segments,
   emailTemplates,
   defaultExpanded = false,
+  hideFocusButton = false,
   onChanged,
 }: {
   org: Organisation;
@@ -59,10 +61,12 @@ export default function OrganisationCard({
   segments: Segment[];
   emailTemplates: EmailTemplate[];
   defaultExpanded?: boolean;
+  hideFocusButton?: boolean;
   onChanged: () => void;
 }) {
   const [expanded, setExpanded] = useState(defaultExpanded);
   const [showHistory, setShowHistory] = useState(false);
+  const [showFocusModal, setShowFocusModal] = useState(false);
 
   async function save(fields: Partial<Organisation>) {
     await updateOrganisation(org.id, fields);
@@ -132,6 +136,16 @@ export default function OrganisationCard({
         >
           {expanded ? "▾" : "▸"}
         </button>
+        {!hideFocusButton && (
+          <button
+            onClick={() => setShowFocusModal(true)}
+            className="mt-1 shrink-0 text-slate-400 hover:text-slate-700"
+            title="Open in focus mode"
+            aria-label="Open in focus mode"
+          >
+            ⤢
+          </button>
+        )}
 
         <div className="flex-1">
           <EditableText
@@ -565,6 +579,7 @@ export default function OrganisationCard({
                   value={org.notes}
                   onSave={(v) => save({ notes: v })}
                   multiline
+                  autoDatePrefix
                   placeholder="Research / call notes"
                   className="w-full rounded border border-slate-200 bg-slate-50 px-2 py-1 text-xs hover:border-slate-300 focus:border-slate-400 focus:bg-white focus:outline-none"
                 />
@@ -583,6 +598,26 @@ export default function OrganisationCard({
             </div>
           </div>
         </div>
+      )}
+
+      {showFocusModal && (
+        <Modal onClose={() => setShowFocusModal(false)}>
+          <OrganisationCard
+            org={org}
+            statuses={statuses}
+            departments={departments}
+            seniorityLevels={seniorityLevels}
+            categories={categories}
+            countries={countries}
+            sourceTypes={sourceTypes}
+            sources={sources}
+            segments={segments}
+            emailTemplates={emailTemplates}
+            defaultExpanded
+            hideFocusButton
+            onChanged={onChanged}
+          />
+        </Modal>
       )}
     </div>
   );
@@ -779,6 +814,7 @@ function StaffPersonEditor({
         onSave={(v) => update({ conversation_notes: v })}
         placeholder="Conversation notes"
         multiline
+        autoDatePrefix
         className="w-full rounded border border-transparent bg-transparent text-xs text-slate-500 hover:border-slate-200 focus:border-slate-400 focus:bg-white focus:outline-none"
       />
       <button

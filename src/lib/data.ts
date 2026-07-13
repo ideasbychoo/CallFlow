@@ -420,15 +420,11 @@ export function googleVoiceCallUrl(phoneNumber: string): string {
 // Opens a URL in a genuine new browser window (not just a new tab) by
 // passing window features, which forces most browsers to pop out a window.
 export function openInNewWindow(url: string) {
-  const width = 1100;
-  const height = 850;
-  const left = window.screenX + Math.max(0, (window.outerWidth - width) / 2);
-  const top = window.screenY + Math.max(0, (window.outerHeight - height) / 2);
-  window.open(
-    url,
-    "_blank",
-    `noopener,noreferrer,width=${width},height=${height},left=${left},top=${top}`
-  );
+  // Deliberately no width/height/left/top features here: as soon as you pass
+  // sizing features to window.open, Chrome renders the result as a chromeless
+  // popup (no address bar, no tab strip). Omitting them gives a normal browser
+  // window, so links to a prospect's website can have extra tabs opened in them.
+  window.open(url, "_blank", "noopener,noreferrer");
 }
 
 // Builds the Google search URL for the "Research" button: searches for the

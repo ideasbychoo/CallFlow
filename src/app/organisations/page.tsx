@@ -4,6 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { EditableText } from "@/components/EditableField";
 import MultiSelectFilter from "@/components/MultiSelectFilter";
+import DepartmentStaffFilter, {
+  EMPTY_DEPARTMENT_STAFF_FILTER,
+  matchesDepartmentStaffFilter,
+  countStaffInDepartment,
+  type DepartmentStaffFilterValue,
+} from "@/components/DepartmentStaffFilter";
 import {
   fetchOrganisations,
   fetchSettingsLists,
@@ -12,7 +18,7 @@ import {
   createOrganisation,
   deleteOrganisation,
 } from "@/lib/data";
-import type { Organisation, Status, Category, Country, SourceType, Source, Segment } from "@/types";
+import type { Organisation, Status, Category, Country, SourceType, Source, Segment, Department } from "@/types";
 
 export default function OrganisationsPage() {
   const [orgs, setOrgs] = useState<Organisation[]>([]);
@@ -22,7 +28,11 @@ export default function OrganisationsPage() {
   const [sourceTypes, setSourceTypes] = useState<SourceType[]>([]);
   const [sources, setSources] = useState<Source[]>([]);
   const [segments, setSegments] = useState<Segment[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [segmentFilter, setSegmentFilter] = useState<string[]>([]);
+  const [deptStaffFilter, setDeptStaffFilter] = useState<DepartmentStaffFilterValue>(
+    EMPTY_DEPARTMENT_STAFF_FILTER
+  );
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -42,6 +52,7 @@ export default function OrganisationsPage() {
       setSourceTypes(settings.sourceTypes);
       setSources(sourcesData);
       setSegments(settings.segments);
+      setDepartments(settings.departments);
     } catch (err) {
       console.error(err);
       setLoadError(err instanceof Error ? err.message : "Failed to load data.");
@@ -96,8 +107,16 @@ export default function OrganisationsPage() {
     if (segmentFilter.length > 0) {
       list = list.filter((o) => o.segment_id && segmentFilter.includes(o.segment_id));
     }
+    if (deptStaffFilter.departmentId) {
+      list = list.filter((o) =>
+        matchesDepartmentStaffFilter(
+          countStaffInDepartment(o.staff, deptStaffFilter.departmentId),
+          deptStaffFilter
+        )
+      );
+    }
     return [...list].sort((a, b) => a.name.localeCompare(b.name));
-  }, [orgs, search, segmentFilter]);
+  }, [orgs, search, segmentFilter, deptStaffFilter]);
 
   async function save(id: string, fields: Partial<Organisation>) {
     await updateOrganisation(id, fields);
@@ -138,6 +157,11 @@ export default function OrganisationsPage() {
             options={segmentOptions}
             selected={segmentFilter}
             onChange={setSegmentFilter}
+          />
+          <DepartmentStaffFilter
+            departments={departments}
+            value={deptStaffFilter}
+            onChange={setDeptStaffFilter}
           />
         </div>
         {!loading && (
@@ -296,7 +320,7 @@ export default function OrganisationsPage() {
                     />
                   </td>
                   <td className="min-w-[220px] px-2 py-1">
-                    <EditableText value={org.notes} onSave={(v) => save(org.id, { notes: v })} multiline className={cellClass} />
+                    <EditableText value={org.notes} onSave={(v) => save(org.id, { notes: v })} multiline autoDatePrefix className={cellClass} />
                   </td>
                   <td className="px-2 py-1 text-center text-slate-500">{(org.staff ?? []).length}</td>
                   <td className="px-2 py-1 text-center text-slate-500">{org.call_attempts}</td>

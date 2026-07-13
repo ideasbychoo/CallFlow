@@ -10,18 +10,28 @@ import {
 import Link from "next/link";
 import MultiSelectFilter from "@/components/MultiSelectFilter";
 import CountryFlag from "@/components/CountryFlag";
+import DepartmentStaffFilter, {
+  EMPTY_DEPARTMENT_STAFF_FILTER,
+  matchesDepartmentStaffFilter,
+  countStaffInDepartment,
+  type DepartmentStaffFilterValue,
+} from "@/components/DepartmentStaffFilter";
 import { fetchOrganisations, fetchSettingsLists, updateOrganisation } from "@/lib/data";
-import type { Organisation, Status, Category, Country } from "@/types";
+import type { Organisation, Status, Category, Country, Department } from "@/types";
 
 export default function PipelinePage() {
   const [orgs, setOrgs] = useState<Organisation[]>([]);
   const [statuses, setStatuses] = useState<Status[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [countries, setCountries] = useState<Country[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [categoryFilter, setCategoryFilter] = useState<string[]>([]);
   const [countryFilter, setCountryFilter] = useState<string[]>([]);
   const [staffMin, setStaffMin] = useState<string>("1");
   const [staffMax, setStaffMax] = useState<string>("");
+  const [deptStaffFilter, setDeptStaffFilter] = useState<DepartmentStaffFilterValue>(
+    EMPTY_DEPARTMENT_STAFF_FILTER
+  );
   const [loading, setLoading] = useState(true);
 
   async function load() {
@@ -33,6 +43,7 @@ export default function PipelinePage() {
     setStatuses(settings.statuses);
     setCategories(settings.categories);
     setCountries(settings.countries);
+    setDepartments(settings.departments);
     setLoading(false);
   }
 
@@ -70,9 +81,17 @@ export default function PipelinePage() {
       const count = (o.staff ?? []).length;
       if (min !== null && count < min) return false;
       if (max !== null && count > max) return false;
+      if (
+        deptStaffFilter.departmentId &&
+        !matchesDepartmentStaffFilter(
+          countStaffInDepartment(o.staff, deptStaffFilter.departmentId),
+          deptStaffFilter
+        )
+      )
+        return false;
       return true;
     });
-  }, [orgs, categoryFilter, countryFilter, staffMin, staffMax]);
+  }, [orgs, categoryFilter, countryFilter, staffMin, staffMax, deptStaffFilter]);
 
   const sortedStatuses = [...statuses].sort((a, b) => a.sort_order - b.sort_order);
 
@@ -131,6 +150,11 @@ export default function PipelinePage() {
               className="w-14 rounded border border-slate-200 px-1 py-0.5 text-slate-800 focus:border-slate-400 focus:outline-none"
             />
           </div>
+          <DepartmentStaffFilter
+            departments={departments}
+            value={deptStaffFilter}
+            onChange={setDeptStaffFilter}
+          />
         </div>
       </div>
 

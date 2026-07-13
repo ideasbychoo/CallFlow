@@ -218,7 +218,7 @@ export default function StaffPage() {
                     <EditableText value={person.availability_notes} onSave={(v) => save(person.id, { availability_notes: v })} multiline className={cellClass} />
                   </td>
                   <td className="min-w-[220px] px-2 py-1">
-                    <EditableText value={person.conversation_notes} onSave={(v) => save(person.id, { conversation_notes: v })} multiline className={cellClass} />
+                    <EditableText value={person.conversation_notes} onSave={(v) => save(person.id, { conversation_notes: v })} multiline autoDatePrefix className={cellClass} />
                   </td>
                   <td className="px-2 py-1">
                     <button

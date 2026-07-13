@@ -4,6 +4,12 @@ import { useEffect, useMemo, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import OrganisationCard from "@/components/OrganisationCard";
 import MultiSelectFilter from "@/components/MultiSelectFilter";
+import DepartmentStaffFilter, {
+  EMPTY_DEPARTMENT_STAFF_FILTER,
+  matchesDepartmentStaffFilter,
+  countStaffInDepartment,
+  type DepartmentStaffFilterValue,
+} from "@/components/DepartmentStaffFilter";
 import {
   fetchOrganisations,
   fetchSettingsLists,
@@ -49,6 +55,9 @@ function CallListInner() {
   const [segmentFilter, setSegmentFilter] = useState<string[]>([]);
   const [staffMin, setStaffMin] = useState<string>("1");
   const [staffMax, setStaffMax] = useState<string>("");
+  const [deptStaffFilter, setDeptStaffFilter] = useState<DepartmentStaffFilterValue>(
+    EMPTY_DEPARTMENT_STAFF_FILTER
+  );
   const [phonePresentOnly, setPhonePresentOnly] = useState<boolean>(true);
   const [sortField, setSortField] = useState<SortField>("date_spotted");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
@@ -148,6 +157,14 @@ function CallListInner() {
         return true;
       });
     }
+    if (deptStaffFilter.departmentId) {
+      result = result.filter((o) =>
+        matchesDepartmentStaffFilter(
+          countStaffInDepartment(o.staff, deptStaffFilter.departmentId),
+          deptStaffFilter
+        )
+      );
+    }
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       result = result.filter((o) => {
@@ -177,7 +194,7 @@ function CallListInner() {
     });
 
     return sorted;
-  }, [orgs, phonePresentOnly, statusFilter, categoryFilter, segmentFilter, countryFilter, staffMin, staffMax, search, sortField, sortDirection]);
+  }, [orgs, phonePresentOnly, statusFilter, categoryFilter, segmentFilter, countryFilter, staffMin, staffMax, deptStaffFilter, search, sortField, sortDirection]);
 
   async function handleAddOrganisation() {
     const defaultStatus = statuses.find((s) => s.sort_order === 1);
@@ -277,6 +294,11 @@ function CallListInner() {
               className="w-14 rounded border border-slate-200 px-1 py-0.5 text-slate-800 focus:border-slate-400 focus:outline-none"
             />
           </div>
+          <DepartmentStaffFilter
+            departments={departments}
+            value={deptStaffFilter}
+            onChange={setDeptStaffFilter}
+          />
           <label className="flex items-center gap-1.5 rounded border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700">
             <input
               type="checkbox"
