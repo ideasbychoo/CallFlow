@@ -15,8 +15,8 @@ async function findOrCreateLookup(
   supabase: ReturnType<typeof createAdminClient>,
   table: "categories" | "departments" | "seniority_levels" | "source_types",
   name: string | undefined | null
-): Promise<string | null> {
-  if (!name || !name.trim()) return null;
+): Promise<{ id: string | null; created: boolean }> {
+  if (!name || !name.trim()) return { id: null, created: false };
   const trimmed = name.trim();
 
   const { data: existing } = await supabase
@@ -25,7 +25,7 @@ async function findOrCreateLookup(
     .ilike("name", trimmed)
     .maybeSingle();
 
-  if (existing) return existing.id as string;
+  if (existing) return { id: existing.id as string, created: false };
 
   const { data: maxRow } = await supabase
     .from(table)
@@ -43,7 +43,7 @@ async function findOrCreateLookup(
     .single();
 
   if (error) throw error;
-  return created.id as string;
+  return { id: created.id as string, created: true };
 }
 
 // Segments are a deliberately fixed, curated list (unlike categories/
@@ -152,7 +152,7 @@ const SELECT_FOR_AGENTS = `
   segment:segments(name),
   source_type:source_types(name),
   source:sources(name),
-  office_locations(location_name, phone_number, website_url, availability),
+  office_locations(id, location_name, phone_number, website_url, availability),
   staff(id, full_name, job_title, email, direct_dial, linkedin, bio, bio_url,
     department:departments(name), seniority:seniority_levels(name))
 `;
@@ -236,13 +236,23 @@ export async function POST(req: NextRequest) {
 
   const supabase = createAdminClient();
   const provided = new Set(Object.keys(organisation ?? {}));
+  const KNOWN_ORG_FIELDS = new Set([
+    "name", "category", "segment", "source_type", "source", "source_website",
+    "country", "similar_to_client", "angle", "notes", "website", "team_page",
+    "annual_report", "impact_report", "linkedin", "beneficiaries", "workers",
+  ]);
+  for (const key of provided) {
+    if (!KNOWN_ORG_FIELDS.has(key)) {
+      warnings.push(`organisation.${key} isn't a recognised field and was ignored -- see the GET .../reference-data or the routine doc for the correct field name.`);
+    }
+  }
 
   // Lookups are only resolved (and only touched on update) when the caller
   // actually provided the corresponding raw field -- otherwise an update
   // call that's only adding e.g. a phone number would silently wipe out an
   // already-set category/segment/source by resolving an absent field to null.
   const category_id = provided.has("category")
-    ? await findOrCreateLookup(supabase, "categories", organisation.category)
+    ? (await findOrCreateLookup(supabase, "categories", organisation.category)).id
     : undefined;
 
   let segment_id: string | null | undefined;
@@ -253,7 +263,7 @@ export async function POST(req: NextRequest) {
   }
 
   const source_type_id = provided.has("source_type")
-    ? await findOrCreateLookup(supabase, "source_types", organisation.source_type)
+    ? (await findOrCreateLookup(supabase, "source_types", organisation.source_type)).id
     : undefined;
   const source_id = provided.has("source")
     ? await findOrCreateSource(supabase, organisation.source, source_type_id ?? null, organisation.source_website)
@@ -331,20 +341,57 @@ export async function POST(req: NextRequest) {
   }
 
   for (const loc of office_locations) {
-    if (!loc?.location_name) continue;
-    await supabase.from("office_locations").insert({
+    const hasAnyData = loc?.phone_number || loc?.website_url || loc?.availability || loc?.location_name;
+    if (!hasAnyData) continue;
+
+    if (loc?.id) {
+      const updateFields: Record<string, unknown> = {};
+      for (const key of ["location_name", "phone_number", "website_url", "availability"]) {
+        if (Object.prototype.hasOwnProperty.call(loc, key)) updateFields[key] = loc[key] ?? null;
+      }
+      if (Object.keys(updateFields).length > 0) {
+        const { error } = await supabase
+          .from("office_locations")
+          .update(updateFields)
+          .eq("id", loc.id)
+          .eq("organisation_id", organisationId);
+        if (error) throw error;
+      }
+      continue;
+    }
+
+    // location_name defaults to something sensible rather than silently
+    // dropping the whole entry when it's omitted -- a phone number or
+    // website is still worth recording even with no distinct site name.
+    const { error } = await supabase.from("office_locations").insert({
       organisation_id: organisationId,
-      location_name: loc.location_name,
+      location_name: loc.location_name || "Main office",
       phone_number: loc.phone_number ?? null,
       website_url: loc.website_url ?? null,
       availability: loc.availability ?? null,
     });
+    if (error) throw error;
   }
+
+  const KNOWN_STAFF_FIELDS = new Set([
+    "full_name", "department", "seniority", "email", "direct_dial", "linkedin",
+    "background_notes", "bio", "bio_url", "availability_notes", "conversation_notes",
+  ]);
 
   for (const person of staff) {
     if (!person?.full_name) continue;
-    const department_id = await findOrCreateLookup(supabase, "departments", person.department);
-    const seniority_id = await findOrCreateLookup(supabase, "seniority_levels", person.seniority);
+    for (const key of Object.keys(person)) {
+      if (!KNOWN_STAFF_FIELDS.has(key)) {
+        warnings.push(`staff "${person.full_name}": field "${key}" isn't recognised and was ignored.`);
+      }
+    }
+
+    const department_id = (await findOrCreateLookup(supabase, "departments", person.department)).id;
+    const seniorityResult = await findOrCreateLookup(supabase, "seniority_levels", person.seniority);
+    const seniority_id = seniorityResult.id;
+    if (seniorityResult.created) {
+      warnings.push(`staff "${person.full_name}": seniority "${person.seniority}" didn't match an existing level, so a new one was created. Check GET .../reference-data for the current list (e.g. "Manager 1", "Manager 2") and prefer an existing empty slot instead of inventing a new label.`);
+    }
 
     let personLinkedin: string | null = person.linkedin ?? null;
     if (personLinkedin && !looksLikeUrl(personLinkedin)) {

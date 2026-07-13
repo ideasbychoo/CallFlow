@@ -15,8 +15,8 @@ async function findOrCreateLookup(
   supabase: ReturnType<typeof createAdminClient>,
   table: "departments" | "seniority_levels",
   name: string | undefined | null
-): Promise<string | null> {
-  if (!name || !name.trim()) return null;
+): Promise<{ id: string | null; created: boolean }> {
+  if (!name || !name.trim()) return { id: null, created: false };
   const trimmed = name.trim();
 
   const { data: existing } = await supabase
@@ -24,7 +24,7 @@ async function findOrCreateLookup(
     .select("id")
     .ilike("name", trimmed)
     .maybeSingle();
-  if (existing) return existing.id as string;
+  if (existing) return { id: existing.id as string, created: false };
 
   const { data: maxRow } = await supabase
     .from(table)
@@ -40,7 +40,7 @@ async function findOrCreateLookup(
     .select("id")
     .single();
   if (error) throw error;
-  return created.id as string;
+  return { id: created.id as string, created: true };
 }
 
 // Expected JSON body:
@@ -91,17 +91,30 @@ export async function POST(req: NextRequest) {
   }
 
   const insertedOrUpdated: string[] = [];
+  const KNOWN_STAFF_FIELDS = new Set([
+    "id", "full_name", "department", "seniority", "email", "direct_dial", "linkedin",
+    "background_notes", "bio", "bio_url", "availability_notes", "conversation_notes",
+  ]);
 
   for (const person of staff) {
     const provided = new Set(Object.keys(person ?? {}));
+    for (const key of provided) {
+      if (!KNOWN_STAFF_FIELDS.has(key)) {
+        warnings.push(`staff "${person.full_name ?? person.id}": field "${key}" isn't recognised and was ignored.`);
+      }
+    }
 
     let department_id: string | null | undefined;
     if (provided.has("department")) {
-      department_id = await findOrCreateLookup(supabase, "departments", person.department);
+      department_id = (await findOrCreateLookup(supabase, "departments", person.department)).id;
     }
     let seniority_id: string | null | undefined;
     if (provided.has("seniority")) {
-      seniority_id = await findOrCreateLookup(supabase, "seniority_levels", person.seniority);
+      const result = await findOrCreateLookup(supabase, "seniority_levels", person.seniority);
+      seniority_id = result.id;
+      if (result.created) {
+        warnings.push(`staff "${person.full_name ?? person.id}": seniority "${person.seniority}" didn't match an existing level, so a new one was created. Check GET .../reference-data for the current list (e.g. "Manager 1", "Manager 2") and prefer an existing empty slot instead of inventing a new label.`);
+      }
     }
 
     let personLinkedin: string | null | undefined = provided.has("linkedin") ? person.linkedin ?? null : undefined;
