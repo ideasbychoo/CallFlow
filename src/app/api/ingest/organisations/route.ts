@@ -144,6 +144,66 @@ async function findOrCreateSource(
 // Response includes a "warnings" array -- always check it. It flags things
 // like an unrecognised Segment name, or a linkedin field that isn't a URL
 // (in which case that field is dropped rather than stored incorrectly).
+const SELECT_FOR_AGENTS = `
+  id, name, country, similar_to_client, angle, notes, website, team_page,
+  annual_report, impact_report, linkedin, beneficiaries, workers, created_by, created_at,
+  category:categories(name),
+  segment:segments(name),
+  source_type:source_types(name),
+  source:sources(name),
+  office_locations(location_name, phone_number, website_url, availability),
+  staff(id, full_name, job_title, email, direct_dial, linkedin, bio, bio_url,
+    department:departments(name), seniority:seniority_levels(name))
+`;
+
+// GET /api/ingest/organisations
+// Auth: same Bearer token as POST.
+// Query params (all optional):
+//   q=<text>          -- case-insensitive substring match on name, for dedup checks
+//                         before adding a new prospect
+//   gaps_only=true     -- only return organisations with no Segment assigned OR
+//                         zero linked staff, for backfill/gap-filling work
+//   limit=<n>          -- cap the number of rows returned (default: no cap)
+//
+// Use this before creating a new organisation (dedup check) and before doing
+// backfill research on existing organisations (to see what's already there
+// and avoid re-adding the same staff member twice).
+export async function GET(req: NextRequest) {
+  if (!checkAuth(req)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const supabase = createAdminClient();
+  const { searchParams } = new URL(req.url);
+  const q = searchParams.get("q");
+  const gapsOnly = searchParams.get("gaps_only") === "true";
+  const limitParam = searchParams.get("limit");
+  const limit = limitParam ? parseInt(limitParam, 10) : null;
+
+  let query = supabase.from("organisations").select(SELECT_FOR_AGENTS).order("name");
+
+  if (q) {
+    query = query.ilike("name", `%${q}%`);
+  }
+  if (limit && Number.isFinite(limit)) {
+    query = query.limit(limit);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  type Row = { segment: unknown; staff: unknown[] };
+  let rows = (data ?? []) as unknown as Row[];
+
+  if (gapsOnly) {
+    rows = rows.filter((row) => !row.segment || (row.staff ?? []).length === 0);
+  }
+
+  return NextResponse.json({ count: rows.length, organisations: rows });
+}
+
 export async function POST(req: NextRequest) {
   if (!checkAuth(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
