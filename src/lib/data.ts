@@ -9,6 +9,7 @@ import type {
   SourceType,
   Source,
   Segment,
+  ReportGroup,
   StaffMember,
   EmailTemplate,
 } from "@/types";
@@ -43,9 +44,10 @@ export async function fetchSettingsLists(): Promise<{
   countries: Country[];
   sourceTypes: SourceType[];
   segments: Segment[];
+  reportGroups: ReportGroup[];
 }> {
   const supabase = createClient();
-  const [statuses, departments, seniorityLevels, categories, countries, sourceTypes, segments] =
+  const [statuses, departments, seniorityLevels, categories, countries, sourceTypes, segments, reportGroupsRaw] =
     await Promise.all([
       supabase.from("statuses").select("*").order("sort_order"),
       supabase.from("departments").select("*").order("sort_order"),
@@ -54,7 +56,19 @@ export async function fetchSettingsLists(): Promise<{
       supabase.from("countries").select("*").order("sort_order"),
       supabase.from("source_types").select("*").order("sort_order"),
       supabase.from("segments").select("*").order("sort_order"),
+      supabase
+        .from("report_groups")
+        .select("*, report_group_statuses(status:statuses(*))")
+        .order("sort_order"),
     ]);
+
+  const reportGroups = (reportGroupsRaw.data ?? []).map((row: unknown) => {
+    const r = row as ReportGroup & { report_group_statuses?: { status: Status }[] };
+    return {
+      ...r,
+      statuses: (r.report_group_statuses ?? []).map((j) => j.status).filter(Boolean),
+    };
+  }) as ReportGroup[];
 
   return {
     statuses: (statuses.data ?? []) as Status[],
@@ -64,6 +78,7 @@ export async function fetchSettingsLists(): Promise<{
     countries: (countries.data ?? []) as Country[],
     sourceTypes: (sourceTypes.data ?? []) as SourceType[],
     segments: (segments.data ?? []) as Segment[],
+    reportGroups,
   };
 }
 
@@ -213,6 +228,81 @@ export async function deleteSettingsItem(table: SettingsTable, id: string) {
   if (error) throw error;
 }
 
+// Persists a new drag-and-drop order for a settings list: assigns sequential
+// sort_order values (1, 2, 3...) matching the given id order.
+export async function reorderSettingsItems(table: SettingsTable, orderedIds: string[]) {
+  const supabase = createClient();
+  await Promise.all(
+    orderedIds.map((id, index) =>
+      supabase.from(table).update({ sort_order: index + 1 }).eq("id", id)
+    )
+  );
+}
+
+export async function setStatusCountsAsCallAttempt(id: string, value: boolean) {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("statuses")
+    .update({ counts_as_call_attempt: value })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+// ============ Report Groups (configurable Reporting summary columns) ============
+
+export async function createReportGroup(name: string, statusIds: string[]): Promise<string> {
+  const supabase = createClient();
+  const { data: maxRow } = await supabase
+    .from("report_groups")
+    .select("sort_order")
+    .order("sort_order", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const nextOrder = (maxRow?.sort_order ?? 0) + 1;
+
+  const { data, error } = await supabase
+    .from("report_groups")
+    .insert({ name, sort_order: nextOrder })
+    .select("id")
+    .single();
+  if (error) throw error;
+
+  if (statusIds.length > 0) {
+    const { error: linkError } = await supabase
+      .from("report_group_statuses")
+      .insert(statusIds.map((status_id) => ({ report_group_id: data.id, status_id })));
+    if (linkError) throw linkError;
+  }
+  return data.id as string;
+}
+
+export async function renameReportGroup(id: string, name: string) {
+  const supabase = createClient();
+  const { error } = await supabase.from("report_groups").update({ name }).eq("id", id);
+  if (error) throw error;
+}
+
+export async function setReportGroupStatuses(reportGroupId: string, statusIds: string[]) {
+  const supabase = createClient();
+  const { error: deleteError } = await supabase
+    .from("report_group_statuses")
+    .delete()
+    .eq("report_group_id", reportGroupId);
+  if (deleteError) throw deleteError;
+  if (statusIds.length > 0) {
+    const { error: insertError } = await supabase
+      .from("report_group_statuses")
+      .insert(statusIds.map((status_id) => ({ report_group_id: reportGroupId, status_id })));
+    if (insertError) throw insertError;
+  }
+}
+
+export async function deleteReportGroup(id: string) {
+  const supabase = createClient();
+  const { error } = await supabase.from("report_groups").delete().eq("id", id);
+  if (error) throw error;
+}
+
 export async function updateCategoryColor(id: string, color: string) {
   const supabase = createClient();
   const { error } = await supabase.from("categories").update({ color }).eq("id", id);
@@ -234,16 +324,6 @@ export async function fetchAllStatusHistory(): Promise<
     status_id: string | null;
     changed_at: string;
   }[];
-}
-
-// A status change counts as a "call attempt" if it's one of the
-// "Call Attempted: X" statuses, or "Email Requested" (requesting an email
-// during/after a call also counts as an attempt). Kept in sync with the
-// database trigger in supabase/migrations (see 008_email_requested_call_attempt.sql).
-export function isCallAttemptStatus(statusName: string | undefined | null): boolean {
-  if (!statusName) return false;
-  if (statusName === "Calling Now") return false;
-  return statusName.startsWith("Call Attempted:") || statusName === "Email Requested";
 }
 
 // ============ Sources ============

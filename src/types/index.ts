@@ -2,6 +2,14 @@ export type Status = {
   id: string;
   name: string;
   sort_order: number;
+  counts_as_call_attempt: boolean;
+};
+
+export type ReportGroup = {
+  id: string;
+  name: string;
+  sort_order: number;
+  statuses?: Status[]; // joined via report_group_statuses
 };
 
 export type Department = {

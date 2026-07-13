@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { addDays, endOfWeek, format, isSameDay, isWithinInterval, startOfWeek } from "date-fns";
-import { fetchAllStatusHistory, fetchSettingsLists, isCallAttemptStatus } from "@/lib/data";
-import type { Status } from "@/types";
+import { fetchAllStatusHistory, fetchSettingsLists } from "@/lib/data";
+import type { Status, ReportGroup } from "@/types";
 
 type HistoryRow = {
   id: string;
@@ -18,6 +18,7 @@ const WEEK_STARTS_ON = 1 as const;
 export default function ReportingPage() {
   const [history, setHistory] = useState<HistoryRow[]>([]);
   const [statuses, setStatuses] = useState<Status[]>([]);
+  const [reportGroups, setReportGroups] = useState<ReportGroup[]>([]);
   const [selectedWeekStart, setSelectedWeekStart] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -32,6 +33,7 @@ export default function ReportingPage() {
         ]);
         setHistory(historyData);
         setStatuses(settings.statuses);
+        setReportGroups(settings.reportGroups);
       } catch (err) {
         console.error(err);
         setLoadError(err instanceof Error ? err.message : "Failed to load data.");
@@ -41,6 +43,11 @@ export default function ReportingPage() {
     }
     load();
   }, []);
+
+  const sortedReportGroups = useMemo(
+    () => [...reportGroups].sort((a, b) => a.sort_order - b.sort_order),
+    [reportGroups]
+  );
 
   const sortedStatuses = useMemo(
     () => [...statuses].sort((a, b) => a.sort_order - b.sort_order),
@@ -89,23 +96,35 @@ export default function ReportingPage() {
         const status = statuses.find((s) => s.id === row.status_id);
         if (status) {
           statusCounts.set(status.id, (statusCounts.get(status.id) ?? 0) + 1);
-          if (isCallAttemptStatus(status.name)) callAttempts += 1;
+          if (status.counts_as_call_attempt) callAttempts += 1;
         }
       }
-      return { day, callAttempts, statusCounts };
+      const groupCounts = new Map<string, number>();
+      for (const group of sortedReportGroups) {
+        const total = (group.statuses ?? []).reduce(
+          (sum, s) => sum + (statusCounts.get(s.id) ?? 0),
+          0
+        );
+        groupCounts.set(group.id, total);
+      }
+      return { day, callAttempts, statusCounts, groupCounts };
     });
-  }, [activeWeek, days, history, statuses]);
+  }, [activeWeek, days, history, statuses, sortedReportGroups]);
 
   const weekTotals = useMemo(() => {
     const totals = new Map<string, number>();
+    const groupTotals = new Map<string, number>();
     let callAttempts = 0;
     for (const row of weekRows) {
       callAttempts += row.callAttempts;
       for (const [statusId, count] of row.statusCounts) {
         totals.set(statusId, (totals.get(statusId) ?? 0) + count);
       }
+      for (const [groupId, count] of row.groupCounts) {
+        groupTotals.set(groupId, (groupTotals.get(groupId) ?? 0) + count);
+      }
     }
-    return { callAttempts, totals };
+    return { callAttempts, totals, groupTotals };
   }, [weekRows]);
 
   return (
@@ -155,6 +174,11 @@ export default function ReportingPage() {
               <tr>
                 <th className="whitespace-nowrap border-b border-slate-200 px-3 py-2 font-medium">Day</th>
                 <th className="whitespace-nowrap border-b border-slate-200 px-3 py-2 font-medium">Call attempts</th>
+                {sortedReportGroups.map((g) => (
+                  <th key={g.id} className="whitespace-nowrap border-b border-slate-200 px-3 py-2 font-medium">
+                    {g.name}
+                  </th>
+                ))}
                 {sortedStatuses.map((s) => (
                   <th key={s.id} className="whitespace-nowrap border-b border-slate-200 px-3 py-2 font-medium">
                     {s.name}
@@ -163,12 +187,17 @@ export default function ReportingPage() {
               </tr>
             </thead>
             <tbody>
-              {weekRows.map(({ day, callAttempts, statusCounts }) => (
+              {weekRows.map(({ day, callAttempts, statusCounts, groupCounts }) => (
                 <tr key={day.toISOString()} className="border-b border-slate-100 hover:bg-slate-50">
                   <td className="whitespace-nowrap px-3 py-2 font-medium text-slate-700">
                     {format(day, "EEE d MMM")}
                   </td>
                   <td className="px-3 py-2 text-center text-slate-800">{callAttempts || "—"}</td>
+                  {sortedReportGroups.map((g) => (
+                    <td key={g.id} className="px-3 py-2 text-center text-slate-800">
+                      {groupCounts.get(g.id) || "—"}
+                    </td>
+                  ))}
                   {sortedStatuses.map((s) => (
                     <td key={s.id} className="px-3 py-2 text-center text-slate-600">
                       {statusCounts.get(s.id) ?? "—"}
@@ -179,6 +208,11 @@ export default function ReportingPage() {
               <tr className="bg-slate-50 font-medium text-slate-800">
                 <td className="whitespace-nowrap px-3 py-2">Week total</td>
                 <td className="px-3 py-2 text-center">{weekTotals.callAttempts || "—"}</td>
+                {sortedReportGroups.map((g) => (
+                  <td key={g.id} className="px-3 py-2 text-center">
+                    {weekTotals.groupTotals.get(g.id) || "—"}
+                  </td>
+                ))}
                 {sortedStatuses.map((s) => (
                   <td key={s.id} className="px-3 py-2 text-center">
                     {weekTotals.totals.get(s.id) ?? "—"}

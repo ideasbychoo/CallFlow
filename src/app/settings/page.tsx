@@ -1,9 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import SettingsList from "@/components/SettingsList";
-import { fetchSettingsLists } from "@/lib/data";
-import type { Status, Department, SeniorityLevel, Category, Country, SourceType, Segment } from "@/types";
+import MultiSelectFilter from "@/components/MultiSelectFilter";
+import {
+  fetchSettingsLists,
+  setStatusCountsAsCallAttempt,
+  createReportGroup,
+  renameReportGroup,
+  setReportGroupStatuses,
+  deleteReportGroup,
+} from "@/lib/data";
+import type { Status, Department, SeniorityLevel, Category, Country, SourceType, Segment, ReportGroup } from "@/types";
 
 export default function SettingsPage() {
   const [statuses, setStatuses] = useState<Status[]>([]);
@@ -13,6 +21,7 @@ export default function SettingsPage() {
   const [countries, setCountries] = useState<Country[]>([]);
   const [sourceTypes, setSourceTypes] = useState<SourceType[]>([]);
   const [segments, setSegments] = useState<Segment[]>([]);
+  const [reportGroups, setReportGroups] = useState<ReportGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [testing, setTesting] = useState(false);
@@ -46,6 +55,7 @@ export default function SettingsPage() {
       setCountries(settings.countries);
       setSourceTypes(settings.sourceTypes);
       setSegments(settings.segments);
+      setReportGroups(settings.reportGroups);
     } catch (err) {
       console.error(err);
       setLoadError(err instanceof Error ? err.message : "Failed to load data.");
@@ -57,6 +67,19 @@ export default function SettingsPage() {
   useEffect(() => {
     load();
   }, []);
+
+  const sortedStatusOptions = useMemo(
+    () =>
+      [...statuses]
+        .sort((a, b) => a.sort_order - b.sort_order)
+        .map((s) => ({ value: s.id, label: s.name })),
+    [statuses]
+  );
+
+  async function handleAddReportGroup() {
+    await createReportGroup("New group", []);
+    load();
+  }
 
   if (loading) {
     return <p className="p-8 text-sm text-slate-400">Loading…</p>;
@@ -116,7 +139,63 @@ export default function SettingsPage() {
         table="statuses"
         items={statuses}
         onChanged={load}
+        extraToggle={{
+          label: "Counts as a call attempt",
+          getValue: (s) => s.counts_as_call_attempt,
+          onToggle: (s, value) => setStatusCountsAsCallAttempt(s.id, value),
+        }}
       />
+
+      <div className="mb-8">
+        <h2 className="mb-2 text-lg font-semibold text-slate-800">Reporting summary columns</h2>
+        <p className="mb-2 text-xs text-slate-500">
+          Group several statuses together into a named column on the Reporting tab (e.g. &ldquo;Chatted&rdquo;).
+        </p>
+        <div className="divide-y divide-slate-100 rounded border border-slate-200 bg-white">
+          {reportGroups.map((group) => (
+            <div key={group.id} className="flex items-center gap-2 px-3 py-2">
+              <input
+                type="text"
+                defaultValue={group.name}
+                onBlur={(e) => {
+                  if (e.target.value.trim() && e.target.value !== group.name) {
+                    renameReportGroup(group.id, e.target.value.trim()).then(load);
+                  }
+                }}
+                className="w-40 shrink-0 rounded border border-transparent bg-transparent text-sm font-medium text-slate-800 hover:border-slate-200 focus:border-slate-400 focus:bg-white focus:outline-none"
+              />
+              <div className="flex-1">
+                <MultiSelectFilter
+                  label="Statuses"
+                  options={sortedStatusOptions}
+                  selected={(group.statuses ?? []).map((s) => s.id)}
+                  onChange={(ids) => setReportGroupStatuses(group.id, ids).then(load)}
+                />
+              </div>
+              <button
+                onClick={() => {
+                  if (confirm(`Remove the "${group.name}" summary column?`)) {
+                    deleteReportGroup(group.id).then(load);
+                  }
+                }}
+                className="text-xs text-slate-300 hover:text-red-500"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+          {reportGroups.length === 0 && (
+            <p className="px-3 py-2 text-sm text-slate-400">No summary columns yet.</p>
+          )}
+        </div>
+        <button
+          onClick={handleAddReportGroup}
+          className="mt-2 text-sm text-slate-500 hover:text-slate-800"
+        >
+          + Add another
+        </button>
+      </div>
+
       <SettingsList
         title="Prospects' Departments"
         table="departments"

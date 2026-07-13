@@ -38,7 +38,7 @@ export default async function RootLayout({
   const supabase = await createClient();
   const { data: statuses } = await supabase
     .from("statuses")
-    .select("id, name, sort_order")
+    .select("id, name, sort_order, counts_as_call_attempt")
     .order("sort_order", { ascending: true });
 
   return (
