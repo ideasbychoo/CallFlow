@@ -48,7 +48,12 @@ async function findOrCreateLookup(
 //   "created_by": "agent:claude-code-prospecting-routine",  // required -- see README
 //   "organisation_id": "uuid"        // either this, or...
 //   "organisation_name": "Acme Charity",  // ...this, to look the org up by name
-//   "staff": [ { full_name, department, seniority, email, direct_dial, linkedin, background_notes, bio, bio_url, availability_notes } ]
+//   "staff": [
+//     // include "id" to UPDATE an existing staff member (only the fields you
+//     // provide are changed -- omit a field to leave it as-is). Omit "id" to
+//     // ADD a brand-new person.
+//     { id, full_name, department, seniority, email, direct_dial, linkedin, background_notes, bio, bio_url, availability_notes }
+//   ]
 // }
 export async function POST(req: NextRequest) {
   if (!checkAuth(req)) {
@@ -85,30 +90,61 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const inserted: string[] = [];
+  const insertedOrUpdated: string[] = [];
 
   for (const person of staff) {
-    if (!person?.full_name) continue;
-    const department_id = await findOrCreateLookup(supabase, "departments", person.department);
-    const seniority_id = await findOrCreateLookup(supabase, "seniority_levels", person.seniority);
+    const provided = new Set(Object.keys(person ?? {}));
 
-    let personLinkedin: string | null = person.linkedin ?? null;
+    let department_id: string | null | undefined;
+    if (provided.has("department")) {
+      department_id = await findOrCreateLookup(supabase, "departments", person.department);
+    }
+    let seniority_id: string | null | undefined;
+    if (provided.has("seniority")) {
+      seniority_id = await findOrCreateLookup(supabase, "seniority_levels", person.seniority);
+    }
+
+    let personLinkedin: string | null | undefined = provided.has("linkedin") ? person.linkedin ?? null : undefined;
     if (personLinkedin && !looksLikeUrl(personLinkedin)) {
-      warnings.push(`staff "${person.full_name}": linkedin field ("${personLinkedin}") doesn't look like a URL -- left blank instead of storing it incorrectly.`);
+      warnings.push(`staff "${person.full_name ?? person.id}": linkedin field ("${personLinkedin}") doesn't look like a URL -- left blank instead of storing it incorrectly.`);
       personLinkedin = null;
     }
+
+    if (person?.id) {
+      // Update an existing staff member -- only touch fields actually provided.
+      const updateFields: Record<string, unknown> = {};
+      if (department_id !== undefined) updateFields.department_id = department_id;
+      if (seniority_id !== undefined) updateFields.seniority_id = seniority_id;
+      if (personLinkedin !== undefined) updateFields.linkedin = personLinkedin;
+      for (const key of ["full_name", "job_title", "email", "direct_dial", "background_notes", "bio", "bio_url", "availability_notes", "conversation_notes"]) {
+        if (provided.has(key)) updateFields[key] = person[key] ?? null;
+      }
+
+      if (Object.keys(updateFields).length === 0) continue;
+
+      const { error } = await supabase
+        .from("staff")
+        .update(updateFields)
+        .eq("id", person.id)
+        .eq("organisation_id", orgId);
+      if (error) throw error;
+      insertedOrUpdated.push(person.id as string);
+      continue;
+    }
+
+    if (!person?.full_name) continue;
 
     const { data, error } = await supabase
       .from("staff")
       .insert({
         organisation_id: orgId,
-        department_id,
-        seniority_id,
+        department_id: department_id ?? null,
+        seniority_id: seniority_id ?? null,
         full_name: person.full_name,
         job_title: person.job_title ?? null,
         email: person.email ?? null,
         direct_dial: person.direct_dial ?? null,
-        linkedin: personLinkedin,
+        linkedin: personLinkedin ?? null,
         background_notes: person.background_notes ?? null,
         bio: person.bio ?? null,
         bio_url: person.bio_url ?? null,
@@ -120,15 +156,15 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (error) throw error;
-    inserted.push(data.id as string);
+    insertedOrUpdated.push(data.id as string);
   }
 
-  if (inserted.length > 0) {
+  if (insertedOrUpdated.length > 0) {
     await supabase
       .from("organisations")
       .update({ backfill_checked_at: new Date().toISOString() })
       .eq("id", orgId);
   }
 
-  return NextResponse.json({ organisation_id: orgId, staff_ids: inserted, warnings });
+  return NextResponse.json({ organisation_id: orgId, staff_ids: insertedOrUpdated, warnings });
 }
