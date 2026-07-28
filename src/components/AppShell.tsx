@@ -35,7 +35,7 @@ export default function AppShell({
         <span className="w-6" aria-hidden="true" />
       </div>
 
-      <div className="flex min-h-0 flex-1">
+      <div className="flex min-h-0 min-w-0 flex-1">
         <Suspense fallback={<div className="w-64 shrink-0 max-md:hidden" />}>
           <Sidebar
             statuses={statuses}
@@ -43,7 +43,7 @@ export default function AppShell({
             onCloseMobile={() => setMobileOpen(false)}
           />
         </Suspense>
-        <main id="main-scroll" className="h-full flex-1 overflow-y-auto bg-slate-50">
+        <main id="main-scroll" className="h-full min-w-0 flex-1 overflow-y-auto bg-slate-50">
           {children}
         </main>
       </div>
