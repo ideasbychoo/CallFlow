@@ -16,12 +16,14 @@ export type Department = {
   id: string;
   name: string;
   sort_order: number;
+  is_official: boolean;
 };
 
 export type SeniorityLevel = {
   id: string;
   name: string;
   sort_order: number;
+  is_official: boolean;
 };
 
 export type Category = {
@@ -35,6 +37,7 @@ export type Segment = {
   id: string;
   name: string;
   sort_order: number;
+  color: string | null;
 };
 
 export type Country = {

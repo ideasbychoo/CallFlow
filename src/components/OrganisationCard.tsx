@@ -117,6 +117,7 @@ export default function OrganisationCard({
 
   const sortedCategories = [...categories].sort((a, b) => a.name.localeCompare(b.name));
   const selectedCategory = categories.find((c) => c.id === org.category_id) ?? null;
+  const selectedSegment = segments.find((s) => s.id === org.segment_id) ?? null;
 
   return (
     <div
@@ -156,6 +157,9 @@ export default function OrganisationCard({
           <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-600">
             {selectedCategory && (
               <CategoryChip name={selectedCategory.name} color={selectedCategory.color} />
+            )}
+            {selectedSegment && (
+              <CategoryChip name={selectedSegment.name} color={selectedSegment.color} />
             )}
             <select
               value={org.category_id ?? ""}
@@ -284,15 +288,15 @@ export default function OrganisationCard({
         <div className="border-t border-slate-100 px-5 pb-5 pt-4">
           <div className="flex flex-col gap-6 lg:flex-row">
             {/* Staff grid */}
-            <div className="flex-1 overflow-x-auto">
+            <div className="flex-1 max-h-[32rem] overflow-auto rounded border border-slate-100">
               <table className="w-full border-collapse text-sm">
                 <thead>
                   <tr>
-                    <th className="w-40 border-b border-slate-200 pb-2 text-left font-medium text-slate-500"></th>
+                    <th className="sticky top-0 left-0 z-20 w-40 min-w-[10rem] border-b border-slate-200 bg-white pb-2 pl-1 text-left font-medium text-slate-500"></th>
                     {sortedSeniority.map((s) => (
                       <th
                         key={s.id}
-                        className="border-b border-slate-200 pb-2 text-left font-medium text-slate-700"
+                        className="sticky top-0 z-10 min-w-[16rem] border-b border-slate-200 bg-white pb-2 pl-3 text-left font-medium text-slate-700"
                       >
                         {s.name}
                       </th>
@@ -302,7 +306,7 @@ export default function OrganisationCard({
                 <tbody>
                   {sortedDepartments.map((dept) => (
                     <tr key={dept.id} className="align-top">
-                      <td className="border-b border-slate-100 py-3 pr-3 font-medium text-slate-700">
+                      <td className="sticky left-0 z-10 border-b border-slate-100 bg-white py-3 pl-1 pr-3 font-medium text-slate-700">
                         {dept.name}
                       </td>
                       {sortedSeniority.map((sen) => {
@@ -311,7 +315,7 @@ export default function OrganisationCard({
                         return (
                           <td
                             key={sen.id}
-                            className="border-b border-slate-100 py-3 pr-3"
+                            className="min-w-[16rem] border-b border-slate-100 py-3 pl-3 pr-3"
                           >
                             <div className="space-y-3">
                               {people.map((p) => (

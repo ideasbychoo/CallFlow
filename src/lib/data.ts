@@ -248,6 +248,59 @@ export async function setStatusCountsAsCallAttempt(id: string, value: boolean) {
   if (error) throw error;
 }
 
+// Marks a Department or Seniority Level as "Official" -- the curated set an
+// entry can be reassigned to when its (non-official) sibling is deleted.
+export async function setLookupOfficial(
+  table: "departments" | "seniority_levels",
+  id: string,
+  value: boolean
+) {
+  const supabase = createClient();
+  const { error } = await supabase.from(table).update({ is_official: value }).eq("id", id);
+  if (error) throw error;
+}
+
+export async function updateSegmentColor(id: string, color: string) {
+  const supabase = createClient();
+  const { error } = await supabase.from("segments").update({ color }).eq("id", id);
+  if (error) throw error;
+}
+
+// Counts how many staff rows currently reference a given Department or
+// Seniority Level, for the "delete and reassign" confirmation dialog.
+export async function countStaffUsingLookup(
+  column: "department_id" | "seniority_id",
+  id: string
+): Promise<number> {
+  const supabase = createClient();
+  const { count, error } = await supabase
+    .from("staff")
+    .select("id", { count: "exact", head: true })
+    .eq(column, id);
+  if (error) throw error;
+  return count ?? 0;
+}
+
+// Reassigns every staff row pointing at `oldId` to `newId` (or null, to just
+// clear it), then deletes the old Department/Seniority Level row. If no
+// staff reference it, this is just a straight delete.
+export async function reassignAndDeleteLookup(
+  table: "departments" | "seniority_levels",
+  column: "department_id" | "seniority_id",
+  oldId: string,
+  newId: string | null
+) {
+  const supabase = createClient();
+  const { error: updateError } = await supabase
+    .from("staff")
+    .update({ [column]: newId })
+    .eq(column, oldId);
+  if (updateError) throw updateError;
+
+  const { error: deleteError } = await supabase.from(table).delete().eq("id", oldId);
+  if (deleteError) throw deleteError;
+}
+
 // ============ Report Groups (configurable Reporting summary columns) ============
 
 export async function createReportGroup(name: string, statusIds: string[]): Promise<string> {

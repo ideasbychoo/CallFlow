@@ -13,7 +13,7 @@ function looksLikeUrl(value: string): boolean {
 
 async function findOrCreateLookup(
   supabase: ReturnType<typeof createAdminClient>,
-  table: "categories" | "departments" | "seniority_levels" | "source_types",
+  table: "categories" | "source_types",
   name: string | undefined | null
 ): Promise<{ id: string | null; created: boolean }> {
   if (!name || !name.trim()) return { id: null, created: false };
@@ -46,11 +46,41 @@ async function findOrCreateLookup(
   return { id: created.id as string, created: true };
 }
 
+// Departments and Seniority Levels are now a fixed, curated list (like
+// Segments) -- the agents auto-creating a new one whenever a name didn't
+// match exactly is exactly what fragmented both lists into dozens of
+// near-duplicate, low-value entries. Ingest must only match an EXISTING
+// entry by name -- never create a new one. If nothing matches, return null
+// and surface a warning so the agent picks the closest existing fit instead.
+async function lookupDeptOrSeniorityStrict(
+  supabase: ReturnType<typeof createAdminClient>,
+  table: "departments" | "seniority_levels",
+  name: string | undefined | null
+): Promise<{ id: string | null; warning: string | null }> {
+  if (!name || !name.trim()) return { id: null, warning: null };
+  const trimmed = name.trim();
+
+  const { data: existing } = await supabase
+    .from(table)
+    .select("id")
+    .ilike("name", trimmed)
+    .maybeSingle();
+
+  if (existing) return { id: existing.id as string, warning: null };
+
+  const label = table === "departments" ? "Department" : "Seniority Level";
+  return {
+    id: null,
+    warning: `${label} "${trimmed}" doesn't match any existing ${label} -- left blank. This is a fixed list; check GET .../reference-data and assign the closest existing fit rather than inventing a new one.`,
+  };
+}
+
 // Segments are a deliberately fixed, curated list (unlike categories/
-// departments/seniority/source_types, which can grow freely). Ingest must
-// only match an EXISTING segment by name -- never create a new one. If the
-// name doesn't match anything, return null and surface a warning so the
-// caller knows the segment wasn't recorded.
+// source_types, which can grow freely). Departments and Seniority Levels are
+// ALSO now a fixed, curated list -- see lookupDeptOrSeniorityStrict above.
+// Ingest must only match an EXISTING segment by name -- never create a new
+// one. If the name doesn't match anything, return null and surface a warning
+// so the caller knows the segment wasn't recorded.
 async function lookupSegmentStrict(
   supabase: ReturnType<typeof createAdminClient>,
   name: string | undefined | null
@@ -186,7 +216,13 @@ export async function GET(req: NextRequest) {
   if (q) {
     query = query.ilike("name", `%${q}%`);
   }
-  if (limit && Number.isFinite(limit)) {
+  // IMPORTANT: when gaps_only=true, the limit must apply AFTER filtering for
+  // gaps, not at the database query level -- otherwise a small limit (e.g.
+  // 15) samples that many organisations *before* filtering, which can return
+  // almost nothing if most of that page happens to already have a Segment
+  // and staff. So only apply the DB-level limit here when gaps_only isn't
+  // set; the gaps_only branch below applies it after filtering instead.
+  if (limit && Number.isFinite(limit) && !gapsOnly) {
     query = query.limit(limit);
   }
 
@@ -198,6 +234,7 @@ export async function GET(req: NextRequest) {
   type Row = { segment: unknown; staff: unknown[]; backfill_checked_at: string | null };
   let rows = (data ?? []) as unknown as Row[];
 
+  let totalMatchingGaps: number | null = null;
   if (gapsOnly) {
     rows = rows.filter((row) => !row.segment || (row.staff ?? []).length === 0);
     // Never-checked orgs first, then oldest-checked -- so the backfill routine
@@ -208,9 +245,17 @@ export async function GET(req: NextRequest) {
       const bTime = b.backfill_checked_at ? new Date(b.backfill_checked_at).getTime() : -Infinity;
       return aTime - bTime;
     });
+    totalMatchingGaps = rows.length;
+    if (limit && Number.isFinite(limit)) {
+      rows = rows.slice(0, limit);
+    }
   }
 
-  return NextResponse.json({ count: rows.length, organisations: rows });
+  return NextResponse.json({
+    count: rows.length,
+    ...(totalMatchingGaps !== null && { total_gaps_backlog: totalMatchingGaps }),
+    organisations: rows,
+  });
 }
 
 export async function POST(req: NextRequest) {
@@ -386,12 +431,13 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const department_id = (await findOrCreateLookup(supabase, "departments", person.department)).id;
-    const seniorityResult = await findOrCreateLookup(supabase, "seniority_levels", person.seniority);
+    const deptResult = await lookupDeptOrSeniorityStrict(supabase, "departments", person.department);
+    const department_id = deptResult.id;
+    if (deptResult.warning) warnings.push(`staff "${person.full_name}": ${deptResult.warning}`);
+
+    const seniorityResult = await lookupDeptOrSeniorityStrict(supabase, "seniority_levels", person.seniority);
     const seniority_id = seniorityResult.id;
-    if (seniorityResult.created) {
-      warnings.push(`staff "${person.full_name}": seniority "${person.seniority}" didn't match an existing level, so a new one was created. Check GET .../reference-data for the current list (e.g. "Manager 1", "Manager 2") and prefer an existing empty slot instead of inventing a new label.`);
-    }
+    if (seniorityResult.warning) warnings.push(`staff "${person.full_name}": ${seniorityResult.warning}`);
 
     let personLinkedin: string | null = person.linkedin ?? null;
     if (personLinkedin && !looksLikeUrl(personLinkedin)) {

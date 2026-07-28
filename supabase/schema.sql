@@ -15,6 +15,7 @@ create table departments (
   id uuid primary key default gen_random_uuid(),
   name text not null unique,
   sort_order integer not null default 0,
+  is_official boolean not null default false,
   created_at timestamptz not null default now()
 );
 
@@ -22,6 +23,7 @@ create table seniority_levels (
   id uuid primary key default gen_random_uuid(),
   name text not null unique,
   sort_order integer not null default 0,
+  is_official boolean not null default false,
   created_at timestamptz not null default now()
 );
 
@@ -69,6 +71,7 @@ create table segments (
   id uuid primary key default gen_random_uuid(),
   name text not null unique,
   sort_order integer not null default 0,
+  color text,
   created_at timestamptz not null default now()
 );
 
@@ -203,18 +206,18 @@ where s.name in ('Chatted: Email Requested', 'Chatted: Meeting Scheduling in Pro
 
 -- ============ SEED DATA: DEPARTMENTS ============
 
-insert into departments (name, sort_order) values
-  ('Impact / MERL', 1),
-  ('Operations', 2),
-  ('Programmes / Services', 3),
-  ('IT / CIO', 4),
-  ('CEO / MD / ED', 5);
+insert into departments (name, sort_order, is_official) values
+  ('Impact / MERL', 1, true),
+  ('Operations', 2, true),
+  ('Programmes / Services', 3, true),
+  ('IT / CIO', 4, true),
+  ('CEO / MD / ED', 5, true);
 
 -- ============ SEED DATA: SENIORITY LEVELS ============
 
-insert into seniority_levels (name, sort_order) values
-  ('Head / Director', 1),
-  ('Manager', 2);
+insert into seniority_levels (name, sort_order, is_official) values
+  ('Head / Director', 1, true),
+  ('Manager', 2, true);
 
 -- ============ SEED DATA: SOURCE TYPES ============
 

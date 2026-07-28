@@ -6,6 +6,7 @@ import MultiSelectFilter from "@/components/MultiSelectFilter";
 import {
   fetchSettingsLists,
   setStatusCountsAsCallAttempt,
+  setLookupOfficial,
   createReportGroup,
   renameReportGroup,
   setReportGroupStatuses,
@@ -147,7 +148,9 @@ export default function SettingsPage() {
       />
 
       <div className="mb-8">
-        <h2 className="mb-2 text-lg font-semibold text-slate-800">Reporting summary columns</h2>
+        <h2 className="mb-2 text-lg font-semibold text-slate-800">
+          Reporting summary columns ({reportGroups.length})
+        </h2>
         <p className="mb-2 text-xs text-slate-500">
           Group several statuses together into a named column on the Reporting tab (e.g. &ldquo;Chatted&rdquo;).
         </p>
@@ -196,17 +199,44 @@ export default function SettingsPage() {
         </button>
       </div>
 
+      <p className="-mt-4 mb-4 text-xs text-slate-500">
+        The two lists below fed directly into the prospecting/backfill agents, which used to
+        auto-create a new entry whenever nothing matched exactly -- that&rsquo;s why they&rsquo;ve grown so
+        cluttered. Agents can no longer create new ones; mark the entries that are genuinely
+        canonical as &ldquo;Official&rdquo; below (used as the reassignment options when deleting a
+        duplicate/junk entry).
+      </p>
       <SettingsList
         title="Prospects' Departments"
         table="departments"
         items={departments}
         onChanged={load}
+        extraToggle={{
+          label: "Official",
+          getValue: (d) => d.is_official,
+          onToggle: (d, value) => setLookupOfficial("departments", d.id, value),
+        }}
+        reassignOnDelete={{
+          lookupTable: "departments",
+          staffColumn: "department_id",
+          noun: "Department",
+        }}
       />
       <SettingsList
         title="Prospects' Seniority Levels"
         table="seniority_levels"
         items={seniorityLevels}
         onChanged={load}
+        extraToggle={{
+          label: "Official",
+          getValue: (s) => s.is_official,
+          onToggle: (s, value) => setLookupOfficial("seniority_levels", s.id, value),
+        }}
+        reassignOnDelete={{
+          lookupTable: "seniority_levels",
+          staffColumn: "seniority_id",
+          noun: "Seniority Level",
+        }}
       />
       <SettingsList
         title="Prospect Categories"
@@ -215,6 +245,7 @@ export default function SettingsPage() {
         onChanged={load}
         sortAlphabetically
         showColor
+        colorField="categories"
       />
       <SettingsList
         title="Countries"
@@ -229,6 +260,8 @@ export default function SettingsPage() {
         items={segments}
         onChanged={load}
         sortAlphabetically
+        showColor
+        colorField="segments"
       />
       <SettingsList
         title="Source Types"

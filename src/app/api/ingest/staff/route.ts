@@ -11,12 +11,16 @@ function looksLikeUrl(value: string): boolean {
   return /^https?:\/\//i.test(value.trim());
 }
 
-async function findOrCreateLookup(
+// Departments and Seniority Levels are now a fixed, curated list (like
+// Segments) -- auto-creating a new one whenever a name didn't match exactly
+// is what fragmented both lists into dozens of near-duplicate, low-value
+// entries. Only match an EXISTING entry by name -- never create a new one.
+async function lookupDeptOrSeniorityStrict(
   supabase: ReturnType<typeof createAdminClient>,
   table: "departments" | "seniority_levels",
   name: string | undefined | null
-): Promise<{ id: string | null; created: boolean }> {
-  if (!name || !name.trim()) return { id: null, created: false };
+): Promise<{ id: string | null; warning: string | null }> {
+  if (!name || !name.trim()) return { id: null, warning: null };
   const trimmed = name.trim();
 
   const { data: existing } = await supabase
@@ -24,23 +28,13 @@ async function findOrCreateLookup(
     .select("id")
     .ilike("name", trimmed)
     .maybeSingle();
-  if (existing) return { id: existing.id as string, created: false };
+  if (existing) return { id: existing.id as string, warning: null };
 
-  const { data: maxRow } = await supabase
-    .from(table)
-    .select("sort_order")
-    .order("sort_order", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  const nextOrder = (maxRow?.sort_order ?? 0) + 1;
-
-  const { data: created, error } = await supabase
-    .from(table)
-    .insert({ name: trimmed, sort_order: nextOrder })
-    .select("id")
-    .single();
-  if (error) throw error;
-  return { id: created.id as string, created: true };
+  const label = table === "departments" ? "Department" : "Seniority Level";
+  return {
+    id: null,
+    warning: `${label} "${trimmed}" doesn't match any existing ${label} -- left blank. This is a fixed list; check GET .../reference-data and assign the closest existing fit rather than inventing a new one.`,
+  };
 }
 
 // Expected JSON body:
@@ -106,15 +100,15 @@ export async function POST(req: NextRequest) {
 
     let department_id: string | null | undefined;
     if (provided.has("department")) {
-      department_id = (await findOrCreateLookup(supabase, "departments", person.department)).id;
+      const result = await lookupDeptOrSeniorityStrict(supabase, "departments", person.department);
+      department_id = result.id;
+      if (result.warning) warnings.push(`staff "${person.full_name ?? person.id}": ${result.warning}`);
     }
     let seniority_id: string | null | undefined;
     if (provided.has("seniority")) {
-      const result = await findOrCreateLookup(supabase, "seniority_levels", person.seniority);
+      const result = await lookupDeptOrSeniorityStrict(supabase, "seniority_levels", person.seniority);
       seniority_id = result.id;
-      if (result.created) {
-        warnings.push(`staff "${person.full_name ?? person.id}": seniority "${person.seniority}" didn't match an existing level, so a new one was created. Check GET .../reference-data for the current list (e.g. "Manager 1", "Manager 2") and prefer an existing empty slot instead of inventing a new label.`);
-      }
+      if (result.warning) warnings.push(`staff "${person.full_name ?? person.id}": ${result.warning}`);
     }
 
     let personLinkedin: string | null | undefined = provided.has("linkedin") ? person.linkedin ?? null : undefined;
