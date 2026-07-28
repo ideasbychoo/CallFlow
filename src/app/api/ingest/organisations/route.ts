@@ -199,6 +199,11 @@ const SELECT_FOR_AGENTS = `
 // Use this before creating a new organisation (dedup check) and before doing
 // backfill research on existing organisations (to see what's already there
 // and avoid re-adding the same staff member twice).
+//
+// Response includes total_gaps_backlog (gaps_only requests only): the total
+// number of organisations currently matching the gaps filter, before `limit`
+// is applied, so the backfill routine can see backlog size without having
+// to fetch it all.
 export async function GET(req: NextRequest) {
   if (!checkAuth(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -211,18 +216,58 @@ export async function GET(req: NextRequest) {
   const limitParam = searchParams.get("limit");
   const limit = limitParam ? parseInt(limitParam, 10) : null;
 
-  let query = supabase.from("organisations").select(SELECT_FOR_AGENTS).order("name");
+  if (gapsOnly) {
+    // Filter, sort, AND limit at the database level via ingest_gaps_view
+    // (migration 019) -- this avoids pulling every organisation's full
+    // nested staff/office_locations payload into Node just to filter almost
+    // all of it back out again, which would only get slower and more
+    // expensive as the table grows. We only fetch the full payload for the
+    // handful of organisation IDs actually being picked up this run.
+    let gapsQuery = supabase
+      .from("ingest_gaps_view")
+      .select("id", { count: "exact" })
+      .or("no_segment.eq.true,staff_count.eq.0")
+      .order("backfill_checked_at", { ascending: true, nullsFirst: true });
 
+    const { data: gapsRows, error: gapsError, count: totalGapsBacklog } = await gapsQuery;
+    if (gapsError) {
+      return NextResponse.json({ error: gapsError.message }, { status: 500 });
+    }
+
+    const orderedIds = (gapsRows ?? []).map((r) => r.id as string);
+    const limitedIds = limit && Number.isFinite(limit) ? orderedIds.slice(0, limit) : orderedIds;
+
+    if (limitedIds.length === 0) {
+      return NextResponse.json({ count: 0, total_gaps_backlog: totalGapsBacklog ?? 0, organisations: [] });
+    }
+
+    const { data, error } = await supabase
+      .from("organisations")
+      .select(SELECT_FOR_AGENTS)
+      .in("id", limitedIds);
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // The .in() query doesn't preserve the backlog-priority order from
+    // ingest_gaps_view, so re-sort the (small) result set to match it.
+    const orderIndex = new Map(limitedIds.map((id, i) => [id, i]));
+    const rows = [...(data ?? [])].sort(
+      (a, b) => (orderIndex.get((a as { id: string }).id) ?? 0) - (orderIndex.get((b as { id: string }).id) ?? 0)
+    );
+
+    return NextResponse.json({
+      count: rows.length,
+      total_gaps_backlog: totalGapsBacklog ?? 0,
+      organisations: rows,
+    });
+  }
+
+  let query = supabase.from("organisations").select(SELECT_FOR_AGENTS).order("name");
   if (q) {
     query = query.ilike("name", `%${q}%`);
   }
-  // IMPORTANT: when gaps_only=true, the limit must apply AFTER filtering for
-  // gaps, not at the database query level -- otherwise a small limit (e.g.
-  // 15) samples that many organisations *before* filtering, which can return
-  // almost nothing if most of that page happens to already have a Segment
-  // and staff. So only apply the DB-level limit here when gaps_only isn't
-  // set; the gaps_only branch below applies it after filtering instead.
-  if (limit && Number.isFinite(limit) && !gapsOnly) {
+  if (limit && Number.isFinite(limit)) {
     query = query.limit(limit);
   }
 
@@ -231,30 +276,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  type Row = { segment: unknown; staff: unknown[]; backfill_checked_at: string | null };
-  let rows = (data ?? []) as unknown as Row[];
-
-  let totalMatchingGaps: number | null = null;
-  if (gapsOnly) {
-    rows = rows.filter((row) => !row.segment || (row.staff ?? []).length === 0);
-    // Never-checked orgs first, then oldest-checked -- so the backfill routine
-    // doesn't keep re-researching the same handful of genuinely-unfindable
-    // organisations every single day.
-    rows = rows.sort((a, b) => {
-      const aTime = a.backfill_checked_at ? new Date(a.backfill_checked_at).getTime() : -Infinity;
-      const bTime = b.backfill_checked_at ? new Date(b.backfill_checked_at).getTime() : -Infinity;
-      return aTime - bTime;
-    });
-    totalMatchingGaps = rows.length;
-    if (limit && Number.isFinite(limit)) {
-      rows = rows.slice(0, limit);
-    }
-  }
-
   return NextResponse.json({
-    count: rows.length,
-    ...(totalMatchingGaps !== null && { total_gaps_backlog: totalMatchingGaps }),
-    organisations: rows,
+    count: (data ?? []).length,
+    organisations: data ?? [],
   });
 }
 
