@@ -9,7 +9,7 @@ export default function MultiSelectFilter({
   onChange,
 }: {
   label: string;
-  options: { value: string; label: string }[];
+  options: { value: string; label: string; color?: string | null; icon?: React.ReactNode }[];
   selected: string[];
   onChange: (values: string[]) => void;
 }) {
@@ -58,6 +58,13 @@ export default function MultiSelectFilter({
                 checked={selected.includes(opt.value)}
                 onChange={() => toggle(opt.value)}
               />
+              {opt.color && (
+                <span
+                  className="h-2.5 w-2.5 shrink-0 rounded-full"
+                  style={{ backgroundColor: opt.color }}
+                />
+              )}
+              {opt.icon}
               {opt.label}
             </label>
           ))}

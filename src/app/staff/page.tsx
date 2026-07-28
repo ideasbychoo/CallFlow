@@ -103,8 +103,8 @@ export default function StaffPage() {
     "rounded border border-transparent bg-transparent px-1 py-0.5 text-xs text-slate-800 hover:border-slate-200 focus:border-slate-400 focus:bg-white focus:outline-none";
 
   return (
-    <div className="px-8 pb-8">
-      <div className="sticky top-0 z-10 -mx-8 bg-slate-50 px-8 pb-4 pt-8">
+    <div className="px-4 sm:px-8 pb-8">
+      <div className="sticky top-0 z-10 -mx-4 sm:-mx-8 bg-slate-50 px-4 sm:px-8 pb-4 pt-8">
         <div className="mb-4 flex items-center justify-between">
           <h1 className="text-3xl font-semibold text-slate-800">Staff</h1>
           <button

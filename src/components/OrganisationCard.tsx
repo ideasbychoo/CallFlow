@@ -129,26 +129,27 @@ export default function OrganisationCard({
       }
     >
       {/* Header row - always visible */}
-      <div className="flex items-start justify-between gap-4 p-5">
-        <button
-          onClick={() => setExpanded((v) => !v)}
-          className="mt-1 shrink-0 text-slate-400 hover:text-slate-700"
-          aria-label={expanded ? "Collapse" : "Expand"}
-        >
-          {expanded ? "▾" : "▸"}
-        </button>
-        {!hideFocusButton && (
+      <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4 sm:p-5">
+        <div className="flex flex-1 items-start gap-4">
           <button
-            onClick={() => setShowFocusModal(true)}
+            onClick={() => setExpanded((v) => !v)}
             className="mt-1 shrink-0 text-slate-400 hover:text-slate-700"
-            title="Open in focus mode"
-            aria-label="Open in focus mode"
+            aria-label={expanded ? "Collapse" : "Expand"}
           >
-            ⤢
+            {expanded ? "▾" : "▸"}
           </button>
-        )}
+          {!hideFocusButton && (
+            <button
+              onClick={() => setShowFocusModal(true)}
+              className="mt-1 shrink-0 text-slate-400 hover:text-slate-700"
+              title="Open in focus mode"
+              aria-label="Open in focus mode"
+            >
+              ⤢
+            </button>
+          )}
 
-        <div className="flex-1">
+          <div className="min-w-0 flex-1">
           <EditableText
             value={org.name}
             onSave={(v) => save({ name: v })}
@@ -205,21 +206,22 @@ export default function OrganisationCard({
               className="w-full flex-1 rounded border border-transparent bg-transparent text-sm text-slate-600 hover:border-slate-200 focus:border-slate-400 focus:bg-white focus:outline-none"
             />
           </div>
+          </div>
         </div>
 
-        <div className="flex shrink-0 flex-col items-end gap-2">
+        <div className="flex shrink-0 flex-col items-start gap-2 sm:items-end">
           <StatusDropdown
             statuses={statuses}
             value={org.status_id}
             onChange={(statusId) => save({ status_id: statusId })}
           />
-          <div className="text-right text-xs leading-relaxed text-slate-500">
-            <div className="flex items-center justify-end gap-1">
+          <div className="text-left text-xs leading-relaxed text-slate-500 sm:text-right">
+            <div className="flex items-center justify-start gap-1 sm:justify-end">
               <CountryFlag country={org.country} />
               <select
                 value={org.country ?? ""}
                 onChange={(e) => save({ country: e.target.value || null })}
-                className="rounded border border-transparent bg-transparent text-right text-xs text-slate-500 hover:border-slate-200 focus:border-slate-400 focus:outline-none"
+                className="rounded border border-transparent bg-transparent text-left text-xs text-slate-500 hover:border-slate-200 focus:border-slate-400 focus:outline-none sm:text-right"
               >
                 <option value="">No country</option>
                 {[...countries]

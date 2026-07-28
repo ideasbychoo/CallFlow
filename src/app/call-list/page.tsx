@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import OrganisationCard from "@/components/OrganisationCard";
 import MultiSelectFilter from "@/components/MultiSelectFilter";
+import CountryFlag from "@/components/CountryFlag";
 import DepartmentStaffFilter, {
   EMPTY_DEPARTMENT_STAFF_FILTER,
   matchesDepartmentStaffFilter,
@@ -115,7 +116,7 @@ function CallListInner() {
     () =>
       [...categories]
         .sort((a, b) => a.name.localeCompare(b.name))
-        .map((c) => ({ value: c.id, label: c.name })),
+        .map((c) => ({ value: c.id, label: c.name, color: c.color })),
     [categories]
   );
 
@@ -123,7 +124,7 @@ function CallListInner() {
     () =>
       [...segments]
         .sort((a, b) => a.name.localeCompare(b.name))
-        .map((s) => ({ value: s.id, label: s.name })),
+        .map((s) => ({ value: s.id, label: s.name, color: s.color })),
     [segments]
   );
 
@@ -222,8 +223,8 @@ function CallListInner() {
     .filter((name): name is string => Boolean(name));
 
   return (
-    <div className="mx-auto max-w-6xl px-8 pb-8">
-      <div className="sticky top-0 z-10 -mx-8 bg-slate-50 px-8 pb-4 pt-8">
+    <div className="mx-auto max-w-6xl px-4 sm:px-8 pb-8">
+      <div className="sticky top-0 z-10 -mx-4 sm:-mx-8 bg-slate-50 px-4 sm:px-8 pb-4 pt-8">
         <div className="mb-6 flex items-center justify-between">
           <h1 className="text-3xl font-semibold text-slate-800">
             Call List{activeStatusNames.length > 0 ? ` · ${activeStatusNames.join(", ")}` : ""}
@@ -288,7 +289,11 @@ function CallListInner() {
           />
           <MultiSelectFilter
             label="Country"
-            options={countryOptions.map((c) => ({ value: c.name, label: c.name }))}
+            options={countryOptions.map((c) => ({
+              value: c.name,
+              label: c.name,
+              icon: <CountryFlag country={c.name} />,
+            }))}
             selected={countryFilter}
             onChange={setCountryFilter}
           />

@@ -61,7 +61,7 @@ export default function PipelinePage() {
     () =>
       [...categories]
         .sort((a, b) => a.name.localeCompare(b.name))
-        .map((c) => ({ value: c.id, label: c.name })),
+        .map((c) => ({ value: c.id, label: c.name, color: c.color })),
     [categories]
   );
 
@@ -113,8 +113,8 @@ export default function PipelinePage() {
   }
 
   return (
-    <div className="px-8 pb-8">
-      <div className="sticky top-0 z-10 -mx-8 bg-slate-50 px-8 pb-4 pt-8">
+    <div className="px-4 sm:px-8 pb-8">
+      <div className="sticky top-0 z-10 -mx-4 sm:-mx-8 bg-slate-50 px-4 sm:px-8 pb-4 pt-8">
         <h1 className="mb-4 text-3xl font-semibold text-slate-800">Pipeline</h1>
 
         <div className="flex flex-wrap items-center gap-3">
@@ -127,7 +127,11 @@ export default function PipelinePage() {
           />
           <MultiSelectFilter
             label="Country"
-            options={countryOptions.map((c) => ({ value: c.name, label: c.name }))}
+            options={countryOptions.map((c) => ({
+              value: c.name,
+              label: c.name,
+              icon: <CountryFlag country={c.name} />,
+            }))}
             selected={countryFilter}
             onChange={setCountryFilter}
           />

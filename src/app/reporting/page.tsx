@@ -128,8 +128,8 @@ export default function ReportingPage() {
   }, [weekRows]);
 
   return (
-    <div className="px-8 pb-8">
-      <div className="sticky top-0 z-10 -mx-8 bg-slate-50 px-8 pb-4 pt-8">
+    <div className="px-4 sm:px-8 pb-8">
+      <div className="sticky top-0 z-10 -mx-4 sm:-mx-8 bg-slate-50 px-4 sm:px-8 pb-4 pt-8">
         <div className="mb-4 flex items-center justify-between">
           <h1 className="text-3xl font-semibold text-slate-800">Reporting</h1>
           {availableWeeks.length > 0 && (
