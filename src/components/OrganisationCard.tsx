@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { format, formatDistanceToNow, parseISO } from "date-fns";
 import { EditableText } from "./EditableField";
 import StatusDropdown from "./StatusDropdown";
@@ -28,6 +28,7 @@ import {
   upsertOfficeLocation,
   deleteOfficeLocation,
   deleteOrganisation,
+  fetchStatusHistoryForOrg,
   googleVoiceCallUrl,
   openInNewWindow,
   researchSearchUrl,
@@ -66,7 +67,22 @@ export default function OrganisationCard({
 }) {
   const [expanded, setExpanded] = useState(defaultExpanded);
   const [showHistory, setShowHistory] = useState(false);
+  const [history, setHistory] = useState<
+    { id: string; status_id: string | null; changed_at: string }[] | null
+  >(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [showFocusModal, setShowFocusModal] = useState(false);
+
+  // Fetch call-attempt history on demand, the first time this org's history
+  // panel is opened -- not eagerly for every org on every page load.
+  useEffect(() => {
+    if (!showHistory || history !== null) return;
+    setHistoryLoading(true);
+    fetchStatusHistoryForOrg(org.id)
+      .then(setHistory)
+      .catch(() => setHistory([]))
+      .finally(() => setHistoryLoading(false));
+  }, [showHistory, history, org.id]);
 
   async function save(fields: Partial<Organisation>) {
     await updateOrganisation(org.id, fields);
@@ -266,14 +282,9 @@ export default function OrganisationCard({
       {showHistory && (
         <div className="border-t border-slate-100 bg-slate-50 px-5 py-3 text-xs text-slate-600">
           <div className="mb-1 font-medium text-slate-700">History</div>
-          {(org.status_history ?? [])
-            .slice()
-            .sort(
-              (a, b) =>
-                new Date(b.changed_at).getTime() -
-                new Date(a.changed_at).getTime()
-            )
-            .map((h) => {
+          {historyLoading && <div>Loading…</div>}
+          {!historyLoading &&
+            (history ?? []).map((h) => {
               const statusName =
                 statuses.find((s) => s.id === h.status_id)?.name ?? "—";
               return (
@@ -282,7 +293,7 @@ export default function OrganisationCard({
                 </div>
               );
             })}
-          {(org.status_history ?? []).length === 0 && <div>No history yet.</div>}
+          {!historyLoading && (history ?? []).length === 0 && <div>No history yet.</div>}
         </div>
       )}
 

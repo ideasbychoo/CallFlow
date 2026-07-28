@@ -21,9 +21,14 @@ const ORG_SELECT = `
   source_type:source_types(id, name, sort_order),
   source:sources(id, name, website),
   office_locations(*),
-  staff(*),
-  status_history(id, status_id, changed_at)
+  staff(*)
 `;
+// Note: status_history is deliberately NOT joined here. It's only ever shown
+// when a person expands the "Call attempts" history panel for a single org
+// (see fetchStatusHistoryForOrg below), so eagerly joining it for every
+// organisation on every list load was pure wasted payload -- it only grows
+// as the org's call-attempt count grows, multiplied across every org in the
+// list, for data almost nobody looks at on a given page load.
 
 export async function fetchOrganisations(): Promise<Organisation[]> {
   const supabase = createClient();
@@ -377,6 +382,22 @@ export async function fetchAllStatusHistory(): Promise<
     status_id: string | null;
     changed_at: string;
   }[];
+}
+
+// Fetches the call-attempt history for a single organisation, on demand --
+// called only when the person actually expands that org's history panel,
+// rather than being joined into every organisation on every list load.
+export async function fetchStatusHistoryForOrg(
+  organisationId: string
+): Promise<{ id: string; status_id: string | null; changed_at: string }[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("status_history")
+    .select("id, status_id, changed_at")
+    .eq("organisation_id", organisationId)
+    .order("changed_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as { id: string; status_id: string | null; changed_at: string }[];
 }
 
 // ============ Sources ============
