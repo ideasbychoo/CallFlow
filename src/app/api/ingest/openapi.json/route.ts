@@ -27,9 +27,13 @@ export async function GET() {
         auth: "required",
         query_params: {
           q: "case-insensitive substring match on organisation name (dedup check)",
-          gaps_only: "'true' to only return organisations with no Segment or zero staff, sorted so never/longest-unchecked come first",
+          gaps_only: "'true' to only return organisations with no Segment or zero staff at all, sorted so never/longest-unchecked (by backfill_checked_at) come first",
+          missing_department: "Department name (e.g. 'Impact / MERL') -- only return organisations with NO staff member in that Department, even if they have other staff/a Segment. Sorted by dept_focus_checked_at.",
+          missing_phone: "'true' to only return organisations with no phone number on any office_locations row. Sorted by phone_focus_checked_at.",
           limit: "cap the number of rows returned",
         },
+        notes:
+          "q / gaps_only / missing_department / missing_phone are mutually exclusive targeting modes -- use one per call. Response includes total_gaps_backlog / total_missing_department_backlog / total_missing_phone_backlog (matching whichever mode was used) alongside count.",
         description: "List/search existing organisations, including their office_locations and staff.",
       },
       {
@@ -38,9 +42,10 @@ export async function GET() {
         auth: "required",
         body: {
           created_by: "string, required -- identifies the calling agent, e.g. 'agent:callflow-backfill-routine'",
+          mark_checked: "array of 'general' | 'dept_focus' | 'phone_focus', optional (default: ['general']) -- which checked-at timestamp(s) to bump on this organisation. General/prospecting/backfill routines can omit this. Specialized routines (Impact/MERL staff-finder, phone-number backfill) should pass their own kind so they don't deprioritise this org in a DIFFERENT routine's queue.",
           organisation: {
             name: "string, required -- also used to match an existing org (case-insensitive) to update instead of duplicating",
-            segment: "string -- must exactly match an existing Segment name (see reference-data); rejected with a warning otherwise, never auto-created",
+            segment: "string -- STRICT: must exactly match an existing Segment name (see reference-data); rejected with a warning otherwise, never auto-created",
             category: "string -- legacy free-text field, auto-created if new",
             source_type: "string -- auto-created if new",
             source: "string -- auto-created if new (linked to source_type)",
@@ -69,8 +74,8 @@ export async function GET() {
           staff: [
             {
               full_name: "string, required for a new person",
-              department: "string -- see reference-data; auto-created if new",
-              seniority: "string -- see reference-data (e.g. 'Head / Director', 'Manager 1', 'Manager 2', 'Manager 3'); prefer an existing empty slot over inventing a new label",
+              department: "string -- STRICT: must exactly match an existing Department name (see reference-data); rejected with a warning otherwise, never auto-created",
+              seniority: "string -- STRICT: must exactly match an existing Seniority Level name (see reference-data); rejected with a warning otherwise, never auto-created",
               email: "string",
               direct_dial: "string",
               linkedin: "string (URL)",
@@ -90,14 +95,15 @@ export async function GET() {
         auth: "required",
         body: {
           created_by: "string, required",
+          mark_checked: "array of 'general' | 'dept_focus' | 'phone_focus', optional (default: ['general']) -- see the matching field on POST /api/ingest/organisations",
           organisation_id: "string (uuid) -- either this or organisation_name",
           organisation_name: "string -- matched case-insensitively",
           staff: [
             {
               id: "string (uuid) -- include to UPDATE an existing staff member (only provided fields change); omit to ADD a new person",
               full_name: "string, required when adding a new person",
-              department: "string",
-              seniority: "string",
+              department: "string -- STRICT: must exactly match an existing Department name (see reference-data); rejected with a warning otherwise, never auto-created",
+              seniority: "string -- STRICT: must exactly match an existing Seniority Level name (see reference-data); rejected with a warning otherwise, never auto-created",
               email: "string",
               direct_dial: "string",
               linkedin: "string (URL)",

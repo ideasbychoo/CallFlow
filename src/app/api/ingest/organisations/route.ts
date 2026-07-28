@@ -189,21 +189,27 @@ const SELECT_FOR_AGENTS = `
 
 // GET /api/ingest/organisations
 // Auth: same Bearer token as POST.
-// Query params (all optional):
-//   q=<text>          -- case-insensitive substring match on name, for dedup checks
-//                         before adding a new prospect
-//   gaps_only=true     -- only return organisations with no Segment assigned OR
-//                         zero linked staff, for backfill/gap-filling work
-//   limit=<n>          -- cap the number of rows returned (default: no cap)
+// Query params (all optional, pick ONE targeting mode -- q / gaps_only /
+// missing_department / missing_phone are mutually exclusive):
+//   q=<text>                 -- case-insensitive substring match on name, for dedup checks
+//                                before adding a new prospect
+//   gaps_only=true            -- orgs with no Segment assigned OR zero linked staff at all
+//                                (general backfill routine)
+//   missing_department=<name> -- orgs with NO staff member in the given Department, even if
+//                                they already have other staff/a Segment (e.g. "Impact / MERL"
+//                                staff-finding routine). Sorted by dept_focus_checked_at.
+//   missing_phone=true        -- orgs with no phone number on ANY office_locations row
+//                                (phone-number backfill routine). Sorted by phone_focus_checked_at.
+//   limit=<n>                 -- cap the number of rows returned (default: no cap)
 //
 // Use this before creating a new organisation (dedup check) and before doing
 // backfill research on existing organisations (to see what's already there
 // and avoid re-adding the same staff member twice).
 //
-// Response includes total_gaps_backlog (gaps_only requests only): the total
-// number of organisations currently matching the gaps filter, before `limit`
-// is applied, so the backfill routine can see backlog size without having
-// to fetch it all.
+// Response includes total_gaps_backlog / total_missing_department_backlog /
+// total_missing_phone_backlog (matching whichever mode was used): the total
+// number of organisations currently matching that filter, before `limit` is
+// applied, so a routine can see backlog size without fetching it all.
 export async function GET(req: NextRequest) {
   if (!checkAuth(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -213,8 +219,104 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("q");
   const gapsOnly = searchParams.get("gaps_only") === "true";
+  const missingDepartment = searchParams.get("missing_department");
+  const missingPhone = searchParams.get("missing_phone") === "true";
   const limitParam = searchParams.get("limit");
   const limit = limitParam ? parseInt(limitParam, 10) : null;
+
+  // Shared helper for the missing_department / missing_phone modes: given a
+  // small set of organisation IDs that DO already satisfy the thing being
+  // searched for, fetch every organisation's id + its own checked_at column
+  // (cheap, no joins), exclude the "already has it" set, sort by checked_at
+  // (never-checked first), slice to `limit`, then fetch the full nested
+  // payload only for that handful of IDs. Mirrors the gaps_only/
+  // ingest_gaps_view approach without needing a bespoke view per mode.
+  async function fetchTargeted(
+    excludeIds: Set<string>,
+    checkedAtColumn: "dept_focus_checked_at" | "phone_focus_checked_at"
+  ) {
+    const { data: allOrgs, error: allOrgsError } = await supabase
+      .from("organisations")
+      .select("id, dept_focus_checked_at, phone_focus_checked_at");
+    if (allOrgsError) throw allOrgsError;
+
+    const typedOrgs = (allOrgs ?? []) as {
+      id: string;
+      dept_focus_checked_at: string | null;
+      phone_focus_checked_at: string | null;
+    }[];
+
+    const candidates = typedOrgs.filter((o) => !excludeIds.has(o.id));
+    candidates.sort((a, b) => {
+      const aTime = a[checkedAtColumn] ? new Date(a[checkedAtColumn] as string).getTime() : -Infinity;
+      const bTime = b[checkedAtColumn] ? new Date(b[checkedAtColumn] as string).getTime() : -Infinity;
+      return aTime - bTime;
+    });
+
+    const total = candidates.length;
+    const limitedIds = (limit && Number.isFinite(limit) ? candidates.slice(0, limit) : candidates).map((o) => o.id);
+
+    if (limitedIds.length === 0) return { total, rows: [] as unknown[] };
+
+    const { data, error } = await supabase.from("organisations").select(SELECT_FOR_AGENTS).in("id", limitedIds);
+    if (error) throw error;
+
+    const orderIndex = new Map(limitedIds.map((id, i) => [id, i]));
+    const rows = [...(data ?? [])].sort(
+      (a, b) => (orderIndex.get((a as { id: string }).id) ?? 0) - (orderIndex.get((b as { id: string }).id) ?? 0)
+    );
+    return { total, rows };
+  }
+
+  if (missingDepartment) {
+    const { data: dept } = await supabase
+      .from("departments")
+      .select("id")
+      .ilike("name", missingDepartment.trim())
+      .maybeSingle();
+
+    if (!dept) {
+      return NextResponse.json(
+        { error: `No Department found matching "${missingDepartment}". Check GET .../reference-data for valid names.` },
+        { status: 400 }
+      );
+    }
+
+    const { data: staffInDept, error: staffError } = await supabase
+      .from("staff")
+      .select("organisation_id")
+      .eq("department_id", dept.id);
+    if (staffError) {
+      return NextResponse.json({ error: staffError.message }, { status: 500 });
+    }
+    const orgsWithDeptStaff = new Set((staffInDept ?? []).map((s) => s.organisation_id as string));
+
+    const { total, rows } = await fetchTargeted(orgsWithDeptStaff, "dept_focus_checked_at");
+    return NextResponse.json({
+      count: rows.length,
+      total_missing_department_backlog: total,
+      organisations: rows,
+    });
+  }
+
+  if (missingPhone) {
+    const { data: locsWithPhone, error: locsError } = await supabase
+      .from("office_locations")
+      .select("organisation_id")
+      .not("phone_number", "is", null)
+      .neq("phone_number", "");
+    if (locsError) {
+      return NextResponse.json({ error: locsError.message }, { status: 500 });
+    }
+    const orgsWithPhone = new Set((locsWithPhone ?? []).map((l) => l.organisation_id as string));
+
+    const { total, rows } = await fetchTargeted(orgsWithPhone, "phone_focus_checked_at");
+    return NextResponse.json({
+      count: rows.length,
+      total_missing_phone_backlog: total,
+      organisations: rows,
+    });
+  }
 
   if (gapsOnly) {
     // Filter, sort, AND limit at the database level via ingest_gaps_view
@@ -288,8 +390,29 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { organisation, office_locations = [], staff = [], created_by } = body ?? {};
+  const { organisation, office_locations = [], staff = [], created_by, mark_checked } = body ?? {};
   const warnings: string[] = [];
+
+  // Which "checked" timestamp(s) to bump on this organisation. Defaults to
+  // just "general" (the existing backfill_checked_at) so the original
+  // prospecting/backfill routines don't need any changes. Specialized
+  // routines (e.g. the Impact/MERL staff-finder, the phone-number backfill)
+  // should pass mark_checked: ["dept_focus"] / ["phone_focus"] so they don't
+  // silently deprioritise this organisation in a DIFFERENT routine's queue
+  // by bumping a shared timestamp they have no business updating.
+  const markCheckedRaw: string[] = Array.isArray(mark_checked) && mark_checked.length > 0 ? mark_checked : ["general"];
+  const VALID_CHECKED_KINDS = new Set(["general", "dept_focus", "phone_focus"]);
+  const checkedAtUpdates: Record<string, string> = {};
+  const now = new Date().toISOString();
+  for (const kind of markCheckedRaw) {
+    if (!VALID_CHECKED_KINDS.has(kind)) {
+      warnings.push(`mark_checked value "${kind}" isn't recognised (expected "general", "dept_focus", or "phone_focus") -- ignored.`);
+      continue;
+    }
+    if (kind === "general") checkedAtUpdates.backfill_checked_at = now;
+    if (kind === "dept_focus") checkedAtUpdates.dept_focus_checked_at = now;
+    if (kind === "phone_focus") checkedAtUpdates.phone_focus_checked_at = now;
+  }
 
   if (!organisation?.name) {
     return NextResponse.json(
@@ -359,7 +482,7 @@ export async function POST(req: NextRequest) {
     // Partial update: only include fields the caller actually provided, so
     // e.g. a backfill call that's only adding staff/a phone number doesn't
     // null out fields it simply didn't mention.
-    const updateFields: Record<string, unknown> = { backfill_checked_at: new Date().toISOString() };
+    const updateFields: Record<string, unknown> = { ...checkedAtUpdates };
     if (category_id !== undefined) updateFields.category_id = category_id;
     if (segment_id !== undefined) updateFields.segment_id = segment_id;
     if (source_type_id !== undefined) updateFields.source_type_id = source_type_id;
@@ -397,7 +520,7 @@ export async function POST(req: NextRequest) {
       beneficiaries: organisation.beneficiaries ?? null,
       workers: organisation.workers ?? null,
       created_by: created_by ?? null,
-      backfill_checked_at: new Date().toISOString(),
+      ...checkedAtUpdates,
       // date_spotted intentionally omitted -- always defaults to today's date.
     };
     const { data: created, error } = await supabase

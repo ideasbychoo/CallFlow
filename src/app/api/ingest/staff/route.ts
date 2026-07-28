@@ -55,8 +55,26 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { organisation_id, organisation_name, staff = [], created_by } = body ?? {};
+  const { organisation_id, organisation_name, staff = [], created_by, mark_checked } = body ?? {};
   const warnings: string[] = [];
+
+  // See the matching comment in /api/ingest/organisations -- defaults to
+  // "general" (backfill_checked_at) for backward compatibility; specialized
+  // routines should pass mark_checked: ["dept_focus"] or ["phone_focus"] so
+  // they don't deprioritise this org in a different routine's queue.
+  const markCheckedRaw: string[] = Array.isArray(mark_checked) && mark_checked.length > 0 ? mark_checked : ["general"];
+  const VALID_CHECKED_KINDS = new Set(["general", "dept_focus", "phone_focus"]);
+  const checkedAtUpdates: Record<string, string> = {};
+  const checkedNow = new Date().toISOString();
+  for (const kind of markCheckedRaw) {
+    if (!VALID_CHECKED_KINDS.has(kind)) {
+      warnings.push(`mark_checked value "${kind}" isn't recognised (expected "general", "dept_focus", or "phone_focus") -- ignored.`);
+      continue;
+    }
+    if (kind === "general") checkedAtUpdates.backfill_checked_at = checkedNow;
+    if (kind === "dept_focus") checkedAtUpdates.dept_focus_checked_at = checkedNow;
+    if (kind === "phone_focus") checkedAtUpdates.phone_focus_checked_at = checkedNow;
+  }
 
   if (!created_by || !String(created_by).trim()) {
     warnings.push(
@@ -169,7 +187,7 @@ export async function POST(req: NextRequest) {
   if (insertedOrUpdated.length > 0) {
     await supabase
       .from("organisations")
-      .update({ backfill_checked_at: new Date().toISOString() })
+      .update(checkedAtUpdates)
       .eq("id", orgId);
   }
 
