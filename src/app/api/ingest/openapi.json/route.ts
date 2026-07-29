@@ -73,7 +73,9 @@ export async function GET() {
           ],
           staff: [
             {
+              id: "string (uuid) -- include to UPDATE an existing staff member (only provided fields change); omit to ADD a new person",
               full_name: "string, required for a new person",
+              job_title: "string",
               department: "string -- STRICT: must exactly match an existing Department name (see reference-data); rejected with a warning otherwise, never auto-created",
               seniority: "string -- STRICT: must exactly match an existing Seniority Level name (see reference-data); rejected with a warning otherwise, never auto-created",
               email: "string",
@@ -87,7 +89,7 @@ export async function GET() {
           ],
         },
         notes:
-          "On update (existing org matched by name), only fields you actually include are changed -- omitted fields are left as-is, not cleared.",
+          "On update (existing org matched by name), only fields you actually include are changed -- omitted fields are left as-is, not cleared. When adding a NEW staff member (no id), an exact case-insensitive full_name match already on file at that organisation is treated as a likely duplicate: the insert is skipped and a warning returned with the existing record's id -- resend with that id to update instead if it's really the same person.",
       },
       {
         method: "POST",
@@ -102,6 +104,7 @@ export async function GET() {
             {
               id: "string (uuid) -- include to UPDATE an existing staff member (only provided fields change); omit to ADD a new person",
               full_name: "string, required when adding a new person",
+              job_title: "string",
               department: "string -- STRICT: must exactly match an existing Department name (see reference-data); rejected with a warning otherwise, never auto-created",
               seniority: "string -- STRICT: must exactly match an existing Seniority Level name (see reference-data); rejected with a warning otherwise, never auto-created",
               email: "string",
@@ -115,6 +118,8 @@ export async function GET() {
             },
           ],
         },
+        notes:
+          "When adding a NEW staff member (no id), an exact case-insensitive full_name match already on file at that organisation is treated as a likely duplicate: the insert is skipped and a warning returned with the existing record's id -- resend with that id to update instead if it's really the same person.",
       },
       {
         method: "POST",

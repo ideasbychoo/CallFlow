@@ -566,30 +566,74 @@ export async function POST(req: NextRequest) {
   }
 
   const KNOWN_STAFF_FIELDS = new Set([
-    "full_name", "department", "seniority", "email", "direct_dial", "linkedin",
+    "id", "full_name", "job_title", "department", "seniority", "email", "direct_dial", "linkedin",
     "background_notes", "bio", "bio_url", "availability_notes", "conversation_notes",
   ]);
 
   for (const person of staff) {
-    if (!person?.full_name) continue;
+    if (!person?.id && !person?.full_name) continue;
     for (const key of Object.keys(person)) {
       if (!KNOWN_STAFF_FIELDS.has(key)) {
-        warnings.push(`staff "${person.full_name}": field "${key}" isn't recognised and was ignored.`);
+        warnings.push(`staff "${person.full_name ?? person.id}": field "${key}" isn't recognised and was ignored.`);
       }
     }
 
     const deptResult = await lookupDeptOrSeniorityStrict(supabase, "departments", person.department);
     const department_id = deptResult.id;
-    if (deptResult.warning) warnings.push(`staff "${person.full_name}": ${deptResult.warning}`);
+    if (deptResult.warning) warnings.push(`staff "${person.full_name ?? person.id}": ${deptResult.warning}`);
 
     const seniorityResult = await lookupDeptOrSeniorityStrict(supabase, "seniority_levels", person.seniority);
     const seniority_id = seniorityResult.id;
-    if (seniorityResult.warning) warnings.push(`staff "${person.full_name}": ${seniorityResult.warning}`);
+    if (seniorityResult.warning) warnings.push(`staff "${person.full_name ?? person.id}": ${seniorityResult.warning}`);
 
     let personLinkedin: string | null = person.linkedin ?? null;
     if (personLinkedin && !looksLikeUrl(personLinkedin)) {
-      warnings.push(`staff "${person.full_name}": linkedin field ("${personLinkedin}") doesn't look like a URL -- left blank instead of storing it incorrectly.`);
+      warnings.push(`staff "${person.full_name ?? person.id}": linkedin field ("${personLinkedin}") doesn't look like a URL -- left blank instead of storing it incorrectly.`);
       personLinkedin = null;
+    }
+
+    // Update an existing staff member -- same as POST /api/ingest/staff.
+    // This was previously MISSING here (this endpoint's staff array always
+    // inserted, regardless of an `id` field), which is exactly what caused
+    // real duplicate staff rows in practice: a caller reasonably assumed
+    // passing an existing person's `id` here would update them, the way it
+    // does on POST /api/ingest/staff, but it silently created a second row
+    // instead.
+    if (person?.id) {
+      const updateFields: Record<string, unknown> = {};
+      if (Object.prototype.hasOwnProperty.call(person, "department")) updateFields.department_id = department_id;
+      if (Object.prototype.hasOwnProperty.call(person, "seniority")) updateFields.seniority_id = seniority_id;
+      if (Object.prototype.hasOwnProperty.call(person, "linkedin")) updateFields.linkedin = personLinkedin;
+      for (const key of ["full_name", "job_title", "email", "direct_dial", "background_notes", "bio", "bio_url", "availability_notes", "conversation_notes"]) {
+        if (Object.prototype.hasOwnProperty.call(person, key)) updateFields[key] = person[key] ?? null;
+      }
+      if (Object.keys(updateFields).length > 0) {
+        const { error } = await supabase
+          .from("staff")
+          .update(updateFields)
+          .eq("id", person.id)
+          .eq("organisation_id", organisationId);
+        if (error) throw error;
+      }
+      continue;
+    }
+
+    // Adding a new person -- guard against the most common real-world
+    // duplicate: an exact case-insensitive name match already on file at
+    // this SAME organisation. Skip the insert and point at the existing
+    // record instead of silently creating a duplicate person.
+    const { data: existingPerson } = await supabase
+      .from("staff")
+      .select("id")
+      .eq("organisation_id", organisationId)
+      .ilike("full_name", person.full_name.trim())
+      .maybeSingle();
+
+    if (existingPerson) {
+      warnings.push(
+        `staff "${person.full_name}": an existing staff record with this exact name already exists at this organisation (id: ${existingPerson.id}) -- skipped creating a duplicate. If this is the same person, resend with "id": "${existingPerson.id}" to update them instead.`
+      );
+      continue;
     }
 
     await supabase.from("staff").insert({

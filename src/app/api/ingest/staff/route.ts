@@ -104,7 +104,7 @@ export async function POST(req: NextRequest) {
 
   const insertedOrUpdated: string[] = [];
   const KNOWN_STAFF_FIELDS = new Set([
-    "id", "full_name", "department", "seniority", "email", "direct_dial", "linkedin",
+    "id", "full_name", "job_title", "department", "seniority", "email", "direct_dial", "linkedin",
     "background_notes", "bio", "bio_url", "availability_notes", "conversation_notes",
   ]);
 
@@ -158,6 +158,26 @@ export async function POST(req: NextRequest) {
     }
 
     if (!person?.full_name) continue;
+
+    // Guard against the most common real-world duplicate: the caller meant
+    // to update someone already on file but didn't include their `id` (e.g.
+    // because they weren't spotted as already existing). An exact
+    // case-insensitive name match at the SAME organisation is a strong
+    // enough signal to skip the insert and point at the existing record
+    // instead, rather than silently creating a duplicate person.
+    const { data: existingPerson } = await supabase
+      .from("staff")
+      .select("id")
+      .eq("organisation_id", orgId)
+      .ilike("full_name", person.full_name.trim())
+      .maybeSingle();
+
+    if (existingPerson) {
+      warnings.push(
+        `staff "${person.full_name}": an existing staff record with this exact name already exists at this organisation (id: ${existingPerson.id}) -- skipped creating a duplicate. If this is the same person, resend with "id": "${existingPerson.id}" to update them instead. If they're genuinely a different person with the same name, include a distinguishing detail (e.g. in background_notes) and contact Matt to add manually.`
+      );
+      continue;
+    }
 
     const { data, error } = await supabase
       .from("staff")
