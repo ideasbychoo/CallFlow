@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
+import { ChevronUp, ChevronDown } from "lucide-react";
 import CategoryChip from "@/components/CategoryChip";
 import CountryFlag from "@/components/CountryFlag";
 import { fetchResearchOrgFlags, fetchSettingsLists } from "@/lib/data";
@@ -13,9 +14,6 @@ function emptyCounts(): Counts {
   return { ready: 0, withPhone: 0, withPriorityRole: 0 };
 }
 
-// A row only ever counts towards these numbers if it's in a "Call or Chase"
-// status -- that's the shared precondition across every column in every
-// table on this page.
 function tally(counts: Counts, row: ResearchOrgFlag) {
   if (!row.is_call_or_chase) return;
   if (row.has_phone && row.has_priority_staff) counts.ready += 1;
@@ -23,13 +21,6 @@ function tally(counts: Counts, row: ResearchOrgFlag) {
   if (row.has_priority_staff) counts.withPriorityRole += 1;
 }
 
-// Builds the Call List URL for a given cell. call_or_chase is always
-// implied (every column on this page requires it). hasPhone/priorityRole
-// are passed explicitly as true/false (never omitted) so the destination
-// page's filters exactly match what this column actually counted --
-// otherwise Call List's own default of "phone present only" would silently
-// add a phone requirement to the "priority role-holder" column, which
-// doesn't require one.
 function callListHref(opts: {
   hasPhone: boolean;
   priorityRole: boolean;
@@ -45,15 +36,62 @@ function callListHref(opts: {
   return `/call-list?${params.toString()}`;
 }
 
-function CountLink({ count, href }: { count: number; href: string }) {
+function CountLink({ count, href, bold = false }: { count: number; href: string; bold?: boolean }) {
   if (count === 0) {
     return <span className="text-slate-400">0</span>;
   }
   return (
-    <Link href={href} className="font-medium text-blue-600 hover:text-blue-800 hover:underline">
+    <Link
+      href={href}
+      className={`text-blue-600 hover:text-blue-800 hover:underline ${bold ? "font-semibold" : "font-medium"}`}
+    >
       {count}
     </Link>
   );
+}
+
+type SortField = "name" | "ready" | "phone" | "priority";
+type SortState = { field: SortField; direction: "asc" | "desc" };
+
+function SortableTh({
+  label,
+  field,
+  sort,
+  onSort,
+}: {
+  label: string;
+  field: SortField;
+  sort: SortState;
+  onSort: (field: SortField) => void;
+}) {
+  const active = sort.field === field;
+  return (
+    <th className="sticky top-0 z-10 border-b border-slate-200 bg-white p-3 text-left font-medium text-slate-700">
+      <button onClick={() => onSort(field)} className="flex items-center gap-1 hover:text-slate-900">
+        {label}
+        {active && (sort.direction === "asc" ? <ChevronUp size={14} /> : <ChevronDown size={14} />)}
+      </button>
+    </th>
+  );
+}
+
+function sortRows<T>(
+  rows: T[],
+  sort: SortState,
+  getName: (row: T) => string,
+  getCounts: (row: T) => Counts
+): T[] {
+  const withIndex = rows.map((row, i) => ({ row, i }));
+  withIndex.sort((a, b) => {
+    let cmp = 0;
+    if (sort.field === "name") cmp = getName(a.row).localeCompare(getName(b.row));
+    else if (sort.field === "ready") cmp = getCounts(a.row).ready - getCounts(b.row).ready;
+    else if (sort.field === "phone") cmp = getCounts(a.row).withPhone - getCounts(b.row).withPhone;
+    else cmp = getCounts(a.row).withPriorityRole - getCounts(b.row).withPriorityRole;
+    if (cmp === 0) cmp = a.i - b.i;
+    return sort.direction === "asc" ? cmp : -cmp;
+  });
+  return withIndex.map((x) => x.row);
 }
 
 export default function ResearchPage() {
@@ -64,6 +102,17 @@ export default function ResearchPage() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  const [segSort, setSegSort] = useState<SortState>({ field: "name", direction: "asc" });
+  const [countrySort, setCountrySort] = useState<SortState>({ field: "name", direction: "asc" });
+
+  function toggleSort(current: SortState, field: SortField, setSort: (s: SortState) => void) {
+    if (current.field === field) {
+      setSort({ field, direction: current.direction === "asc" ? "desc" : "asc" });
+    } else {
+      setSort({ field, direction: "asc" });
+    }
+  }
 
   async function load() {
     setLoadError(null);
@@ -104,10 +153,6 @@ export default function ResearchPage() {
     [departments]
   );
 
-  // Everything below is a single pass over `flags` (currently ~500 rows,
-  // just a handful of booleans each) grouped into plain objects -- no
-  // per-cell queries. See migration 022 / research_org_flags for where the
-  // actual per-organisation computation happens.
   const perSegment = useMemo(() => {
     const map = new Map<string, Counts>();
     for (const seg of sortedSegments) map.set(seg.id, emptyCounts());
@@ -130,9 +175,13 @@ export default function ResearchPage() {
     return map;
   }, [flags, sortedCountries]);
 
+  const grandTotals = useMemo(() => {
+    const counts = emptyCounts();
+    for (const row of flags) tally(counts, row);
+    return counts;
+  }, [flags]);
+
   const crossTab = useMemo(() => {
-    // Keyed "segmentId::country" -> ready-to-contact count only (the
-    // cross-tab is just the first column, per the spec).
     const map = new Map<string, number>();
     for (const row of flags) {
       if (!row.segment_id || !row.country || !row.is_call_or_chase) continue;
@@ -143,9 +192,27 @@ export default function ResearchPage() {
     return map;
   }, [flags]);
 
+  const segRows = useMemo(
+    () => sortedSegments.map((seg) => ({ seg, counts: perSegment.get(seg.id) ?? emptyCounts() })),
+    [sortedSegments, perSegment]
+  );
+  const sortedSegRows = useMemo(
+    () => sortRows(segRows, segSort, (r) => r.seg.name, (r) => r.counts),
+    [segRows, segSort]
+  );
+
+  const countryRows = useMemo(
+    () => sortedCountries.map((c) => ({ country: c, counts: perCountry.get(c.name) ?? emptyCounts() })),
+    [sortedCountries, perCountry]
+  );
+  const sortedCountryRows = useMemo(
+    () => sortRows(countryRows, countrySort, (r) => r.country.name, (r) => r.counts),
+    [countryRows, countrySort]
+  );
+
   return (
     <div className="px-4 pb-8 sm:px-8">
-      <div className="sticky top-0 z-10 -mx-4 bg-slate-50 px-4 pb-4 pt-8 sm:-mx-8 sm:px-8">
+      <div className="sticky top-0 z-20 -mx-4 bg-slate-50 px-4 pb-4 pt-8 sm:-mx-8 sm:px-8">
         <h1 className="text-3xl font-semibold text-slate-800">Research</h1>
         <p className="mt-1 text-sm text-slate-500">
           A snapshot of prospect research so far -- where the organisations ready for a call
@@ -194,17 +261,35 @@ export default function ResearchPage() {
           <h2 className="mb-2 text-lg font-semibold text-slate-800">Ready to contact: per segment and country</h2>
           <p className="mb-3 text-sm text-slate-500">
             Organisations in a Call-or-Chase status with both a phone number and a priority
-            role-holder identified.
+            role-holder identified. The top row and left column are totals; the corner cell is
+            the overall total.
           </p>
-          <div className="mb-10 overflow-x-auto rounded border border-slate-200 bg-white">
-            <table className="w-full border-collapse text-sm">
+          <div className="mb-10 max-h-[32rem] overflow-auto rounded border border-slate-200 bg-white">
+            <table className="border-collapse text-sm" style={{ tableLayout: "fixed" }}>
+              <colgroup>
+                <col style={{ width: 220 }} />
+                <col style={{ width: 90 }} />
+                {sortedCountries.map((c) => (
+                  <col key={c.name} style={{ width: 110 }} />
+                ))}
+              </colgroup>
               <thead>
                 <tr>
-                  <th className="sticky left-0 z-10 border-b border-r border-slate-200 bg-white p-3 text-left"></th>
+                  <th className="sticky left-0 top-0 z-30 border-b border-r border-slate-200 bg-white p-3 text-left">
+                    <CountLink
+                      count={grandTotals.ready}
+                      href={callListHref({ hasPhone: true, priorityRole: true })}
+                      bold
+                    />
+                    <span className="ml-1 text-xs font-normal text-slate-400">total</span>
+                  </th>
+                  <th className="sticky top-0 left-[220px] z-20 border-b border-r border-slate-200 bg-white p-3 text-left font-medium text-slate-700">
+                    Total
+                  </th>
                   {sortedCountries.map((c) => (
                     <th
                       key={c.name}
-                      className="whitespace-nowrap border-b border-slate-200 p-3 text-left font-medium text-slate-700"
+                      className="sticky top-0 z-10 whitespace-nowrap border-b border-slate-200 bg-white p-3 text-left font-medium text-slate-700"
                     >
                       <span className="flex items-center gap-1.5">
                         <CountryFlag country={c.name} />
@@ -215,134 +300,163 @@ export default function ResearchPage() {
                 </tr>
               </thead>
               <tbody>
-                {sortedSegments.map((seg) => (
+                {sortedSegments.map((seg) => {
+                  const counts = perSegment.get(seg.id) ?? emptyCounts();
+                  return (
+                    <tr key={seg.id}>
+                      <td className="sticky left-0 z-10 whitespace-nowrap border-b border-r border-slate-200 bg-white p-3">
+                        <CategoryChip name={seg.name} color={seg.color} />
+                      </td>
+                      <td className="sticky left-[220px] z-10 border-b border-r border-slate-200 bg-white p-3 font-medium">
+                        <CountLink
+                          count={counts.ready}
+                          href={callListHref({ hasPhone: true, priorityRole: true, segmentId: seg.id })}
+                        />
+                      </td>
+                      {sortedCountries.map((c) => {
+                        const count = crossTab.get(`${seg.id}::${c.name}`) ?? 0;
+                        return (
+                          <td key={c.name} className="border-b border-slate-100 p-3">
+                            <CountLink
+                              count={count}
+                              href={callListHref({
+                                hasPhone: true,
+                                priorityRole: true,
+                                segmentId: seg.id,
+                                country: c.name,
+                              })}
+                            />
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <h2 className="mb-2 text-lg font-semibold text-slate-800">Hit List per segment</h2>
+          <div className="mb-10 max-h-[32rem] overflow-auto rounded border border-slate-200 bg-white">
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr>
+                  <SortableTh label="Segment" field="name" sort={segSort} onSort={(f) => toggleSort(segSort, f, setSegSort)} />
+                  <SortableTh
+                    label="Ready to contact: Orgs to contact (with phone number and a priority role-holder identified)"
+                    field="ready"
+                    sort={segSort}
+                    onSort={(f) => toggleSort(segSort, f, setSegSort)}
+                  />
+                  <SortableTh
+                    label="Orgs to contact (with phone number)"
+                    field="phone"
+                    sort={segSort}
+                    onSort={(f) => toggleSort(segSort, f, setSegSort)}
+                  />
+                  <SortableTh
+                    label="Orgs to contact (with a priority role-holder identified)"
+                    field="priority"
+                    sort={segSort}
+                    onSort={(f) => toggleSort(segSort, f, setSegSort)}
+                  />
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="bg-slate-50">
+                  <td className="whitespace-nowrap border-b border-slate-200 p-3 font-semibold text-slate-700">
+                    Total
+                  </td>
+                  <td className="border-b border-slate-200 p-3">
+                    <CountLink count={grandTotals.ready} href={callListHref({ hasPhone: true, priorityRole: true })} bold />
+                  </td>
+                  <td className="border-b border-slate-200 p-3">
+                    <CountLink count={grandTotals.withPhone} href={callListHref({ hasPhone: true, priorityRole: false })} bold />
+                  </td>
+                  <td className="border-b border-slate-200 p-3">
+                    <CountLink count={grandTotals.withPriorityRole} href={callListHref({ hasPhone: false, priorityRole: true })} bold />
+                  </td>
+                </tr>
+                {sortedSegRows.map(({ seg, counts }) => (
                   <tr key={seg.id}>
-                    <td className="sticky left-0 z-10 whitespace-nowrap border-b border-r border-slate-200 bg-white p-3">
+                    <td className="whitespace-nowrap border-b border-slate-100 p-3">
                       <CategoryChip name={seg.name} color={seg.color} />
                     </td>
-                    {sortedCountries.map((c) => {
-                      const count = crossTab.get(`${seg.id}::${c.name}`) ?? 0;
-                      return (
-                        <td key={c.name} className="border-b border-slate-100 p-3">
-                          <CountLink
-                            count={count}
-                            href={callListHref({
-                              hasPhone: true,
-                              priorityRole: true,
-                              segmentId: seg.id,
-                              country: c.name,
-                            })}
-                          />
-                        </td>
-                      );
-                    })}
+                    <td className="border-b border-slate-100 p-3">
+                      <CountLink count={counts.ready} href={callListHref({ hasPhone: true, priorityRole: true, segmentId: seg.id })} />
+                    </td>
+                    <td className="border-b border-slate-100 p-3">
+                      <CountLink count={counts.withPhone} href={callListHref({ hasPhone: true, priorityRole: false, segmentId: seg.id })} />
+                    </td>
+                    <td className="border-b border-slate-100 p-3">
+                      <CountLink count={counts.withPriorityRole} href={callListHref({ hasPhone: false, priorityRole: true, segmentId: seg.id })} />
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
 
-          <h2 className="mb-2 text-lg font-semibold text-slate-800">Hit List per segment</h2>
-          <div className="mb-10 overflow-x-auto rounded border border-slate-200 bg-white">
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr>
-                  <th className="border-b border-slate-200 p-3 text-left font-medium text-slate-700">Segment</th>
-                  <th className="border-b border-slate-200 p-3 text-left font-medium text-slate-700">
-                    Ready to contact: Orgs to contact (with phone number and a priority role-holder
-                    identified)
-                  </th>
-                  <th className="border-b border-slate-200 p-3 text-left font-medium text-slate-700">
-                    Orgs to contact (with phone number)
-                  </th>
-                  <th className="border-b border-slate-200 p-3 text-left font-medium text-slate-700">
-                    Orgs to contact (with a priority role-holder identified)
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortedSegments.map((seg) => {
-                  const counts = perSegment.get(seg.id) ?? emptyCounts();
-                  return (
-                    <tr key={seg.id}>
-                      <td className="whitespace-nowrap border-b border-slate-100 p-3">
-                        <CategoryChip name={seg.name} color={seg.color} />
-                      </td>
-                      <td className="border-b border-slate-100 p-3">
-                        <CountLink
-                          count={counts.ready}
-                          href={callListHref({ hasPhone: true, priorityRole: true, segmentId: seg.id })}
-                        />
-                      </td>
-                      <td className="border-b border-slate-100 p-3">
-                        <CountLink
-                          count={counts.withPhone}
-                          href={callListHref({ hasPhone: true, priorityRole: false, segmentId: seg.id })}
-                        />
-                      </td>
-                      <td className="border-b border-slate-100 p-3">
-                        <CountLink
-                          count={counts.withPriorityRole}
-                          href={callListHref({ hasPhone: false, priorityRole: true, segmentId: seg.id })}
-                        />
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
           <h2 className="mb-2 text-lg font-semibold text-slate-800">Hit List per country</h2>
-          <div className="mb-10 overflow-x-auto rounded border border-slate-200 bg-white">
+          <div className="mb-10 max-h-[32rem] overflow-auto rounded border border-slate-200 bg-white">
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr>
-                  <th className="border-b border-slate-200 p-3 text-left font-medium text-slate-700">Country</th>
-                  <th className="border-b border-slate-200 p-3 text-left font-medium text-slate-700">
-                    Ready to contact: Orgs to contact (with phone number and a priority role-holder
-                    identified)
-                  </th>
-                  <th className="border-b border-slate-200 p-3 text-left font-medium text-slate-700">
-                    Orgs to contact (with phone number)
-                  </th>
-                  <th className="border-b border-slate-200 p-3 text-left font-medium text-slate-700">
-                    Orgs to contact (with a priority role-holder identified)
-                  </th>
+                  <SortableTh label="Country" field="name" sort={countrySort} onSort={(f) => toggleSort(countrySort, f, setCountrySort)} />
+                  <SortableTh
+                    label="Ready to contact: Orgs to contact (with phone number and a priority role-holder identified)"
+                    field="ready"
+                    sort={countrySort}
+                    onSort={(f) => toggleSort(countrySort, f, setCountrySort)}
+                  />
+                  <SortableTh
+                    label="Orgs to contact (with phone number)"
+                    field="phone"
+                    sort={countrySort}
+                    onSort={(f) => toggleSort(countrySort, f, setCountrySort)}
+                  />
+                  <SortableTh
+                    label="Orgs to contact (with a priority role-holder identified)"
+                    field="priority"
+                    sort={countrySort}
+                    onSort={(f) => toggleSort(countrySort, f, setCountrySort)}
+                  />
                 </tr>
               </thead>
               <tbody>
-                {sortedCountries.map((c) => {
-                  const counts = perCountry.get(c.name) ?? emptyCounts();
-                  return (
-                    <tr key={c.name}>
-                      <td className="whitespace-nowrap border-b border-slate-100 p-3">
-                        <span className="flex items-center gap-1.5">
-                          <CountryFlag country={c.name} />
-                          {c.name}
-                        </span>
-                      </td>
-                      <td className="border-b border-slate-100 p-3">
-                        <CountLink
-                          count={counts.ready}
-                          href={callListHref({ hasPhone: true, priorityRole: true, country: c.name })}
-                        />
-                      </td>
-                      <td className="border-b border-slate-100 p-3">
-                        <CountLink
-                          count={counts.withPhone}
-                          href={callListHref({ hasPhone: true, priorityRole: false, country: c.name })}
-                        />
-                      </td>
-                      <td className="border-b border-slate-100 p-3">
-                        <CountLink
-                          count={counts.withPriorityRole}
-                          href={callListHref({ hasPhone: false, priorityRole: true, country: c.name })}
-                        />
-                      </td>
-                    </tr>
-                  );
-                })}
+                <tr className="bg-slate-50">
+                  <td className="whitespace-nowrap border-b border-slate-200 p-3 font-semibold text-slate-700">
+                    Total
+                  </td>
+                  <td className="border-b border-slate-200 p-3">
+                    <CountLink count={grandTotals.ready} href={callListHref({ hasPhone: true, priorityRole: true })} bold />
+                  </td>
+                  <td className="border-b border-slate-200 p-3">
+                    <CountLink count={grandTotals.withPhone} href={callListHref({ hasPhone: true, priorityRole: false })} bold />
+                  </td>
+                  <td className="border-b border-slate-200 p-3">
+                    <CountLink count={grandTotals.withPriorityRole} href={callListHref({ hasPhone: false, priorityRole: true })} bold />
+                  </td>
+                </tr>
+                {sortedCountryRows.map(({ country: c, counts }) => (
+                  <tr key={c.name}>
+                    <td className="whitespace-nowrap border-b border-slate-100 p-3">
+                      <span className="flex items-center gap-1.5">
+                        <CountryFlag country={c.name} />
+                        {c.name}
+                      </span>
+                    </td>
+                    <td className="border-b border-slate-100 p-3">
+                      <CountLink count={counts.ready} href={callListHref({ hasPhone: true, priorityRole: true, country: c.name })} />
+                    </td>
+                    <td className="border-b border-slate-100 p-3">
+                      <CountLink count={counts.withPhone} href={callListHref({ hasPhone: true, priorityRole: false, country: c.name })} />
+                    </td>
+                    <td className="border-b border-slate-100 p-3">
+                      <CountLink count={counts.withPriorityRole} href={callListHref({ hasPhone: false, priorityRole: true, country: c.name })} />
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
