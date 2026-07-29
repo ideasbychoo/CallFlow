@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, Suspense } from "react";
+import { useEffect, useMemo, useRef, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import OrganisationCard from "@/components/OrganisationCard";
 import MultiSelectFilter from "@/components/MultiSelectFilter";
@@ -64,8 +64,45 @@ function CallListInner() {
     EMPTY_DEPARTMENT_STAFF_FILTER
   );
   const [phonePresentOnly, setPhonePresentOnly] = useState<boolean>(true);
+  const [priorityRoleOnly, setPriorityRoleOnly] = useState<boolean>(false);
   const [sortField, setSortField] = useState<SortField>("date_spotted");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+
+  // Applies deep-link filters coming from the Research page (or any other
+  // link into Call List), once settings have loaded. Resolving
+  // call_or_chase/priority_role needs the live Statuses/Departments
+  // "official" flags rather than baked-in IDs, so the link keeps working
+  // correctly even if those flags change later.
+  const appliedDeepLinkRef = useRef(false);
+  useEffect(() => {
+    if (loading || appliedDeepLinkRef.current) return;
+    appliedDeepLinkRef.current = true;
+
+    const segmentParam = searchParams.get("segment");
+    if (segmentParam) setSegmentFilter([segmentParam]);
+
+    const countryParam = searchParams.get("country");
+    if (countryParam) setCountryFilter([countryParam]);
+
+    if (searchParams.get("call_or_chase") === "true") {
+      const ids = statuses.filter((s) => s.is_call_or_chase).map((s) => s.id);
+      if (ids.length > 0) setStatusFilter(ids);
+    }
+
+    // Explicit true/false (not just "is it present") -- a Research page link
+    // always states both flags explicitly, since the Call List page's own
+    // default (phone-present-only = true) would otherwise silently narrow a
+    // link that was never meant to require a phone number (e.g. the
+    // "priority role-holder identified" column).
+    const priorityRoleParam = searchParams.get("priority_role");
+    if (priorityRoleParam === "true") setPriorityRoleOnly(true);
+    else if (priorityRoleParam === "false") setPriorityRoleOnly(false);
+
+    const hasPhoneParam = searchParams.get("has_phone");
+    if (hasPhoneParam === "true") setPhonePresentOnly(true);
+    else if (hasPhoneParam === "false") setPhonePresentOnly(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
 
   async function load() {
     setLoadError(null);
@@ -178,6 +215,16 @@ function CallListInner() {
         )
       );
     }
+    if (priorityRoleOnly) {
+      const priorityDeptIds = new Set(
+        departments.filter((d) => d.is_priority_role_holder).map((d) => d.id)
+      );
+      result = result.filter((o) =>
+        (o.staff ?? []).some(
+          (p) => isIdentifiedStaffMember(p) && p.department_id && priorityDeptIds.has(p.department_id)
+        )
+      );
+    }
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       result = result.filter((o) => {
@@ -207,7 +254,7 @@ function CallListInner() {
     });
 
     return sorted;
-  }, [orgs, phonePresentOnly, statusFilter, categoryFilter, segmentFilter, countryFilter, staffMin, staffMax, deptStaffFilter, search, sortField, sortDirection]);
+  }, [orgs, phonePresentOnly, priorityRoleOnly, departments, statusFilter, categoryFilter, segmentFilter, countryFilter, staffMin, staffMax, deptStaffFilter, search, sortField, sortDirection]);
 
   async function handleAddOrganisation() {
     const defaultStatus = statuses.find((s) => s.sort_order === 1);
@@ -330,6 +377,15 @@ function CallListInner() {
               className="rounded border-slate-300"
             />
             Phone number(s) present
+          </label>
+          <label className="flex items-center gap-1.5 rounded border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              checked={priorityRoleOnly}
+              onChange={(e) => setPriorityRoleOnly(e.target.checked)}
+              className="rounded border-slate-300"
+            />
+            Priority role-holder identified
           </label>
         </div>
       </div>

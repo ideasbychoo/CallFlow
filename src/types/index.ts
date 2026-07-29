@@ -3,6 +3,7 @@ export type Status = {
   name: string;
   sort_order: number;
   counts_as_call_attempt: boolean;
+  is_call_or_chase: boolean;
 };
 
 export type ReportGroup = {
@@ -17,6 +18,7 @@ export type Department = {
   name: string;
   sort_order: number;
   is_official: boolean;
+  is_priority_role_holder: boolean;
 };
 
 export type SeniorityLevel = {
@@ -142,3 +144,17 @@ export type Organisation = {
 
 export type SortField = "date_spotted" | "last_interaction_at" | "name";
 export type SortDirection = "asc" | "desc";
+
+// One row per organisation from the research_org_flags view -- precomputed
+// booleans backing the Research page's three tables, so that page can do
+// all its grouping/counting in memory from one small query instead of
+// running a separate query per segment/country/cell.
+export type ResearchOrgFlag = {
+  id: string;
+  segment_id: string | null;
+  country: string | null;
+  status_id: string | null;
+  is_call_or_chase: boolean;
+  has_phone: boolean;
+  has_priority_staff: boolean;
+};

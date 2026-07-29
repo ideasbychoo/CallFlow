@@ -8,6 +8,7 @@ create table statuses (
   name text not null unique,
   sort_order integer not null,
   counts_as_call_attempt boolean not null default false,
+  is_call_or_chase boolean not null default false,
   created_at timestamptz not null default now()
 );
 
@@ -16,6 +17,7 @@ create table departments (
   name text not null unique,
   sort_order integer not null default 0,
   is_official boolean not null default false,
+  is_priority_role_holder boolean not null default false,
   created_at timestamptz not null default now()
 );
 
@@ -178,7 +180,26 @@ create index idx_organisations_dept_focus_checked on organisations(dept_focus_ch
 create index idx_organisations_phone_focus_checked on organisations(phone_focus_checked_at);
 create index idx_office_locations_org on office_locations(organisation_id);
 create index idx_staff_org on staff(organisation_id);
+create index idx_staff_department on staff(department_id);
 create index idx_status_history_org on status_history(organisation_id, changed_at desc);
+
+create or replace view research_org_flags as
+select
+  o.id,
+  o.segment_id,
+  o.country,
+  o.status_id,
+  coalesce((select st.is_call_or_chase from statuses st where st.id = o.status_id), false) as is_call_or_chase,
+  exists (
+    select 1 from office_locations ol
+    where ol.organisation_id = o.id and ol.phone_number is not null and ol.phone_number <> ''
+  ) as has_phone,
+  exists (
+    select 1 from staff s
+    join departments d on d.id = s.department_id
+    where s.organisation_id = o.id and d.is_priority_role_holder = true
+  ) as has_priority_staff
+from organisations o;
 
 -- ============ SEED DATA: STATUSES (in brief's order) ============
 

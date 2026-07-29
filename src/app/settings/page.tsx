@@ -6,7 +6,9 @@ import MultiSelectFilter from "@/components/MultiSelectFilter";
 import {
   fetchSettingsLists,
   setStatusCountsAsCallAttempt,
+  setStatusIsCallOrChase,
   setLookupOfficial,
+  setDepartmentIsPriorityRoleHolder,
   createReportGroup,
   renameReportGroup,
   setReportGroupStatuses,
@@ -140,12 +142,24 @@ export default function SettingsPage() {
         table="statuses"
         items={statuses}
         onChanged={load}
-        extraToggle={{
-          label: "Counts as a call attempt",
-          getValue: (s) => s.counts_as_call_attempt,
-          onToggle: (s, value) => setStatusCountsAsCallAttempt(s.id, value),
-        }}
+        extraToggles={[
+          {
+            label: "Counts as a call attempt",
+            getValue: (s) => s.counts_as_call_attempt,
+            onToggle: (s, value) => setStatusCountsAsCallAttempt(s.id, value),
+          },
+          {
+            label: "Call or Chase",
+            getValue: (s) => s.is_call_or_chase,
+            onToggle: (s, value) => setStatusIsCallOrChase(s.id, value),
+          },
+        ]}
       />
+      <p className="-mt-4 mb-8 text-xs text-slate-500">
+        &ldquo;Call or Chase&rdquo; marks which statuses count as an organisation still being
+        actively worked -- used by the Research page&rsquo;s hit-list tables and their Call List
+        links.
+      </p>
 
       <div className="mb-8">
         <h2 className="mb-2 text-lg font-semibold text-slate-800">
@@ -211,27 +225,41 @@ export default function SettingsPage() {
         table="departments"
         items={departments}
         onChanged={load}
-        extraToggle={{
-          label: "Official",
-          getValue: (d) => d.is_official,
-          onToggle: (d, value) => setLookupOfficial("departments", d.id, value),
-        }}
+        extraToggles={[
+          {
+            label: "Official",
+            getValue: (d) => d.is_official,
+            onToggle: (d, value) => setLookupOfficial("departments", d.id, value),
+          },
+          {
+            label: "Priority role-holder",
+            getValue: (d) => d.is_priority_role_holder,
+            onToggle: (d, value) => setDepartmentIsPriorityRoleHolder(d.id, value),
+          },
+        ]}
         reassignOnDelete={{
           lookupTable: "departments",
           staffColumn: "department_id",
           noun: "Department",
         }}
       />
+      <p className="-mt-4 mb-4 text-xs text-slate-500">
+        &ldquo;Priority role-holder&rdquo; marks which Departments count as the kind of contact
+        worth prioritising (e.g. Impact / MERL) -- used by the Research page&rsquo;s hit-list
+        tables and their Call List links.
+      </p>
       <SettingsList
         title="Prospects' Seniority Levels"
         table="seniority_levels"
         items={seniorityLevels}
         onChanged={load}
-        extraToggle={{
-          label: "Official",
-          getValue: (s) => s.is_official,
-          onToggle: (s, value) => setLookupOfficial("seniority_levels", s.id, value),
-        }}
+        extraToggles={[
+          {
+            label: "Official",
+            getValue: (s) => s.is_official,
+            onToggle: (s, value) => setLookupOfficial("seniority_levels", s.id, value),
+          },
+        ]}
         reassignOnDelete={{
           lookupTable: "seniority_levels",
           staffColumn: "seniority_id",

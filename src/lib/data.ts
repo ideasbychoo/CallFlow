@@ -12,6 +12,7 @@ import type {
   ReportGroup,
   StaffMember,
   EmailTemplate,
+  ResearchOrgFlag,
 } from "@/types";
 
 const ORG_SELECT = `
@@ -251,6 +252,33 @@ export async function setStatusCountsAsCallAttempt(id: string, value: boolean) {
     .update({ counts_as_call_attempt: value })
     .eq("id", id);
   if (error) throw error;
+}
+
+export async function setStatusIsCallOrChase(id: string, value: boolean) {
+  const supabase = createClient();
+  const { error } = await supabase.from("statuses").update({ is_call_or_chase: value }).eq("id", id);
+  if (error) throw error;
+}
+
+export async function setDepartmentIsPriorityRoleHolder(id: string, value: boolean) {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("departments")
+    .update({ is_priority_role_holder: value })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+// Backs the Research page. One row per organisation with three precomputed
+// booleans (see migration 022 / research_org_flags) -- a single small query
+// instead of a separate count query per segment/country/cell.
+export async function fetchResearchOrgFlags(): Promise<ResearchOrgFlag[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("research_org_flags")
+    .select("id, segment_id, country, status_id, is_call_or_chase, has_phone, has_priority_staff");
+  if (error) throw error;
+  return (data ?? []) as ResearchOrgFlag[];
 }
 
 // Marks a Department or Seniority Level as "Official" -- the curated set an

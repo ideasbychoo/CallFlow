@@ -32,7 +32,7 @@ export default function SettingsList<T extends Item>({
   showColor = false,
   colorField = "categories",
   disableAdd = false,
-  extraToggle,
+  extraToggles,
   reassignOnDelete,
 }: {
   title: string;
@@ -49,12 +49,14 @@ export default function SettingsList<T extends Item>({
   // ones should now be added deliberately from here, so this stays available,
   // just not disabled by default. Kept as an option for future lock-down.
   disableAdd?: boolean;
-  // Optional extra per-row checkbox, e.g. "Counts as a call attempt" on Statuses.
-  extraToggle?: {
+  // Optional extra per-row checkboxes, e.g. "Counts as a call attempt" and
+  // "Call or Chase" on Statuses, or "Official" and "Priority role-holder"
+  // on Departments. Rendered in the order given.
+  extraToggles?: {
     label: string;
     getValue: (item: T) => boolean;
     onToggle: (item: T, value: boolean) => Promise<void>;
-  };
+  }[];
   // When set, deleting an item asks how many staff records use it and lets
   // the user reassign them to one of the "Official" items first, instead of
   // just deleting outright. Used for Departments/Seniority Levels.
@@ -152,17 +154,20 @@ export default function SettingsList<T extends Item>({
               onSave={(v) => renameSettingsItem(table, item.id, v).then(onChanged)}
               className="flex-1 rounded border border-transparent bg-transparent text-sm text-slate-800 hover:border-slate-200 focus:border-slate-400 focus:bg-white focus:outline-none"
             />
-            {extraToggle && (
-              <label className="flex shrink-0 items-center gap-1.5 text-xs text-slate-500">
+            {(extraToggles ?? []).map((toggle) => (
+              <label
+                key={toggle.label}
+                className="flex shrink-0 items-center gap-1.5 text-xs text-slate-500"
+              >
                 <input
                   type="checkbox"
-                  checked={extraToggle.getValue(item)}
-                  onChange={(e) => extraToggle.onToggle(item, e.target.checked).then(onChanged)}
+                  checked={toggle.getValue(item)}
+                  onChange={(e) => toggle.onToggle(item, e.target.checked).then(onChanged)}
                   className="rounded border-slate-300"
                 />
-                {extraToggle.label}
+                {toggle.label}
               </label>
-            )}
+            ))}
             <button
               onClick={async () => {
                 if (reassignOnDelete) {
