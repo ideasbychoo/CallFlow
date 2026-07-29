@@ -190,7 +190,7 @@ const SELECT_FOR_AGENTS = `
 // GET /api/ingest/organisations
 // Auth: same Bearer token as POST.
 // Query params (all optional, pick ONE targeting mode -- q / gaps_only /
-// missing_department / missing_phone are mutually exclusive):
+// missing_department / missing_phone / missing_segment are mutually exclusive):
 //   q=<text>                 -- case-insensitive substring match on name, for dedup checks
 //                                before adding a new prospect
 //   gaps_only=true            -- orgs with no Segment assigned OR zero linked staff at all
@@ -200,6 +200,8 @@ const SELECT_FOR_AGENTS = `
 //                                staff-finding routine). Sorted by dept_focus_checked_at.
 //   missing_phone=true        -- orgs with no phone number on ANY office_locations row
 //                                (phone-number backfill routine). Sorted by phone_focus_checked_at.
+//   missing_segment=true      -- orgs with no Segment assigned, even if they already have staff/
+//                                phone (Segment backfill routine). Sorted by segment_focus_checked_at.
 //   limit=<n>                 -- cap the number of rows returned (default: no cap)
 //
 // Use this before creating a new organisation (dedup check) and before doing
@@ -207,9 +209,10 @@ const SELECT_FOR_AGENTS = `
 // and avoid re-adding the same staff member twice).
 //
 // Response includes total_gaps_backlog / total_missing_department_backlog /
-// total_missing_phone_backlog (matching whichever mode was used): the total
-// number of organisations currently matching that filter, before `limit` is
-// applied, so a routine can see backlog size without fetching it all.
+// total_missing_phone_backlog / total_missing_segment_backlog (matching
+// whichever mode was used): the total number of organisations currently
+// matching that filter, before `limit` is applied, so a routine can see
+// backlog size without fetching it all.
 export async function GET(req: NextRequest) {
   if (!checkAuth(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -221,6 +224,7 @@ export async function GET(req: NextRequest) {
   const gapsOnly = searchParams.get("gaps_only") === "true";
   const missingDepartment = searchParams.get("missing_department");
   const missingPhone = searchParams.get("missing_phone") === "true";
+  const missingSegment = searchParams.get("missing_segment") === "true";
   const limitParam = searchParams.get("limit");
   const limit = limitParam ? parseInt(limitParam, 10) : null;
 
@@ -318,6 +322,29 @@ export async function GET(req: NextRequest) {
     });
   }
 
+  if (missingSegment) {
+    // Unlike Department/Phone, segment_id is a direct column on
+    // organisations -- no exclude-set join needed, just filter/sort/limit
+    // straight in the query.
+    let query = supabase
+      .from("organisations")
+      .select(SELECT_FOR_AGENTS, { count: "exact" })
+      .is("segment_id", null)
+      .order("segment_focus_checked_at", { ascending: true, nullsFirst: true });
+    if (limit && Number.isFinite(limit)) {
+      query = query.limit(limit);
+    }
+    const { data, error, count } = await query;
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    return NextResponse.json({
+      count: (data ?? []).length,
+      total_missing_segment_backlog: count ?? 0,
+      organisations: data ?? [],
+    });
+  }
+
   if (gapsOnly) {
     // Filter, sort, AND limit at the database level via ingest_gaps_view
     // (migration 019) -- this avoids pulling every organisation's full
@@ -396,22 +423,24 @@ export async function POST(req: NextRequest) {
   // Which "checked" timestamp(s) to bump on this organisation. Defaults to
   // just "general" (the existing backfill_checked_at) so the original
   // prospecting/backfill routines don't need any changes. Specialized
-  // routines (e.g. the Impact/MERL staff-finder, the phone-number backfill)
-  // should pass mark_checked: ["dept_focus"] / ["phone_focus"] so they don't
-  // silently deprioritise this organisation in a DIFFERENT routine's queue
-  // by bumping a shared timestamp they have no business updating.
+  // routines (e.g. the Impact/MERL staff-finder, the phone-number backfill,
+  // the Segment backfill) should pass mark_checked: ["dept_focus"] /
+  // ["phone_focus"] / ["segment_focus"] so they don't silently deprioritise
+  // this organisation in a DIFFERENT routine's queue by bumping a shared
+  // timestamp they have no business updating.
   const markCheckedRaw: string[] = Array.isArray(mark_checked) && mark_checked.length > 0 ? mark_checked : ["general"];
-  const VALID_CHECKED_KINDS = new Set(["general", "dept_focus", "phone_focus"]);
+  const VALID_CHECKED_KINDS = new Set(["general", "dept_focus", "phone_focus", "segment_focus"]);
   const checkedAtUpdates: Record<string, string> = {};
   const now = new Date().toISOString();
   for (const kind of markCheckedRaw) {
     if (!VALID_CHECKED_KINDS.has(kind)) {
-      warnings.push(`mark_checked value "${kind}" isn't recognised (expected "general", "dept_focus", or "phone_focus") -- ignored.`);
+      warnings.push(`mark_checked value "${kind}" isn't recognised (expected "general", "dept_focus", "phone_focus", or "segment_focus") -- ignored.`);
       continue;
     }
     if (kind === "general") checkedAtUpdates.backfill_checked_at = now;
     if (kind === "dept_focus") checkedAtUpdates.dept_focus_checked_at = now;
     if (kind === "phone_focus") checkedAtUpdates.phone_focus_checked_at = now;
+    if (kind === "segment_focus") checkedAtUpdates.segment_focus_checked_at = now;
   }
 
   if (!organisation?.name) {

@@ -34,6 +34,8 @@ import type {
   SortDirection,
 } from "@/types";
 
+import { NO_VALUE } from "@/lib/filters";
+
 function CallListInner() {
   const searchParams = useSearchParams();
   const urlStatus = searchParams.get("status");
@@ -140,6 +142,13 @@ function CallListInner() {
     () => [...countries].sort((a, b) => a.name.localeCompare(b.name)),
     [countries]
   );
+  const countryFilterOptions = useMemo(
+    () => [
+      ...countryOptions.map((c) => ({ value: c.name, label: c.name, icon: <CountryFlag country={c.name} /> })),
+      { value: NO_VALUE, label: "No country identified" },
+    ],
+    [countryOptions]
+  );
 
   const sortedStatusOptions = useMemo(
     () =>
@@ -158,10 +167,12 @@ function CallListInner() {
   );
 
   const sortedSegmentOptions = useMemo(
-    () =>
-      [...segments]
+    () => [
+      ...[...segments]
         .sort((a, b) => a.name.localeCompare(b.name))
         .map((s) => ({ value: s.id, label: s.name, color: s.color })),
+      { value: NO_VALUE, label: "No segment identified" },
+    ],
     [segments]
   );
 
@@ -190,12 +201,16 @@ function CallListInner() {
       );
     }
     if (segmentFilter.length > 0) {
-      result = result.filter(
-        (o) => o.segment_id && segmentFilter.includes(o.segment_id)
-      );
+      result = result.filter((o) => {
+        if (!o.segment_id) return segmentFilter.includes(NO_VALUE);
+        return segmentFilter.includes(o.segment_id);
+      });
     }
     if (countryFilter.length > 0) {
-      result = result.filter((o) => o.country && countryFilter.includes(o.country));
+      result = result.filter((o) => {
+        if (!o.country) return countryFilter.includes(NO_VALUE);
+        return countryFilter.includes(o.country);
+      });
     }
     const min = staffMin.trim() ? parseInt(staffMin, 10) : null;
     const max = staffMax.trim() ? parseInt(staffMax, 10) : null;
@@ -336,11 +351,7 @@ function CallListInner() {
           />
           <MultiSelectFilter
             label="Country"
-            options={countryOptions.map((c) => ({
-              value: c.name,
-              label: c.name,
-              icon: <CountryFlag country={c.name} />,
-            }))}
+            options={countryFilterOptions}
             selected={countryFilter}
             onChange={setCountryFilter}
           />

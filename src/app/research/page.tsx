@@ -6,7 +6,16 @@ import { ChevronUp, ChevronDown } from "lucide-react";
 import CategoryChip from "@/components/CategoryChip";
 import CountryFlag from "@/components/CountryFlag";
 import { fetchResearchOrgFlags, fetchSettingsLists } from "@/lib/data";
+import { NO_VALUE } from "@/lib/filters";
 import type { ResearchOrgFlag, Segment, Country, Status, Department } from "@/types";
+
+// Stand-ins for organisations with no Segment / no Country set, so they
+// show up as their own row/column instead of being silently excluded from
+// every table. Match Call List's NO_VALUE sentinel so links from here into
+// Call List correctly select "No segment identified" / "No country
+// identified" there too.
+const NO_SEGMENT: Segment = { id: NO_VALUE, name: "No segment", sort_order: 0, color: null };
+const NO_COUNTRY: Country = { id: NO_VALUE, name: NO_VALUE, sort_order: 0 };
 
 type Counts = { ready: number; withPhone: number; withPriorityRole: number };
 
@@ -31,6 +40,9 @@ function callListHref(opts: {
   params.set("call_or_chase", "true");
   params.set("has_phone", String(opts.hasPhone));
   params.set("priority_role", String(opts.priorityRole));
+  // segmentId/country may legitimately be NO_VALUE ("__none__") -- Call
+  // List's filters understand that sentinel as "no Segment/Country
+  // identified", so it's passed through the same as a real id/name.
   if (opts.segmentId) params.set("segment", opts.segmentId);
   if (opts.country) params.set("country", opts.country);
   return `/call-list?${params.toString()}`;
@@ -153,27 +165,35 @@ export default function ResearchPage() {
     [departments]
   );
 
+  // Segments/Countries lists extended with a synthetic "No segment"/"No
+  // country" entry, so organisations missing either aren't silently
+  // dropped from any table. Kept separate from the real, alphabetically-
+  // sorted lists so the cross-tab can put these last rather than
+  // interleaving them alphabetically.
+  const segmentsWithNone = useMemo(() => [...sortedSegments, NO_SEGMENT], [sortedSegments]);
+  const countriesWithNone = useMemo(() => [...sortedCountries, NO_COUNTRY], [sortedCountries]);
+
   const perSegment = useMemo(() => {
     const map = new Map<string, Counts>();
-    for (const seg of sortedSegments) map.set(seg.id, emptyCounts());
+    for (const seg of segmentsWithNone) map.set(seg.id, emptyCounts());
     for (const row of flags) {
-      if (!row.segment_id) continue;
-      const counts = map.get(row.segment_id);
+      const key = row.segment_id ?? NO_VALUE;
+      const counts = map.get(key);
       if (counts) tally(counts, row);
     }
     return map;
-  }, [flags, sortedSegments]);
+  }, [flags, segmentsWithNone]);
 
   const perCountry = useMemo(() => {
     const map = new Map<string, Counts>();
-    for (const c of sortedCountries) map.set(c.name, emptyCounts());
+    for (const c of countriesWithNone) map.set(c.name, emptyCounts());
     for (const row of flags) {
-      if (!row.country) continue;
-      const counts = map.get(row.country);
+      const key = row.country ?? NO_VALUE;
+      const counts = map.get(key);
       if (counts) tally(counts, row);
     }
     return map;
-  }, [flags, sortedCountries]);
+  }, [flags, countriesWithNone]);
 
   const grandTotals = useMemo(() => {
     const counts = emptyCounts();
@@ -184,17 +204,17 @@ export default function ResearchPage() {
   const crossTab = useMemo(() => {
     const map = new Map<string, number>();
     for (const row of flags) {
-      if (!row.segment_id || !row.country || !row.is_call_or_chase) continue;
+      if (!row.is_call_or_chase) continue;
       if (!(row.has_phone && row.has_priority_staff)) continue;
-      const key = `${row.segment_id}::${row.country}`;
+      const key = `${row.segment_id ?? NO_VALUE}::${row.country ?? NO_VALUE}`;
       map.set(key, (map.get(key) ?? 0) + 1);
     }
     return map;
   }, [flags]);
 
   const segRows = useMemo(
-    () => sortedSegments.map((seg) => ({ seg, counts: perSegment.get(seg.id) ?? emptyCounts() })),
-    [sortedSegments, perSegment]
+    () => segmentsWithNone.map((seg) => ({ seg, counts: perSegment.get(seg.id) ?? emptyCounts() })),
+    [segmentsWithNone, perSegment]
   );
   const sortedSegRows = useMemo(
     () => sortRows(segRows, segSort, (r) => r.seg.name, (r) => r.counts),
@@ -202,8 +222,8 @@ export default function ResearchPage() {
   );
 
   const countryRows = useMemo(
-    () => sortedCountries.map((c) => ({ country: c, counts: perCountry.get(c.name) ?? emptyCounts() })),
-    [sortedCountries, perCountry]
+    () => countriesWithNone.map((c) => ({ country: c, counts: perCountry.get(c.name) ?? emptyCounts() })),
+    [countriesWithNone, perCountry]
   );
   const sortedCountryRows = useMemo(
     () => sortRows(countryRows, countrySort, (r) => r.country.name, (r) => r.counts),
@@ -269,7 +289,7 @@ export default function ResearchPage() {
               <colgroup>
                 <col style={{ width: 220 }} />
                 <col style={{ width: 90 }} />
-                {sortedCountries.map((c) => (
+                {countriesWithNone.map((c) => (
                   <col key={c.name} style={{ width: 110 }} />
                 ))}
               </colgroup>
@@ -286,21 +306,21 @@ export default function ResearchPage() {
                   <th className="sticky top-0 left-[220px] z-20 border-b border-r border-slate-200 bg-white p-3 text-left font-medium text-slate-700">
                     Total
                   </th>
-                  {sortedCountries.map((c) => (
+                  {countriesWithNone.map((c) => (
                     <th
                       key={c.name}
                       className="sticky top-0 z-10 whitespace-nowrap border-b border-slate-200 bg-white p-3 text-left font-medium text-slate-700"
                     >
                       <span className="flex items-center gap-1.5">
-                        <CountryFlag country={c.name} />
-                        {c.name}
+                        {c.id !== NO_VALUE && <CountryFlag country={c.name} />}
+                        {c.id === NO_VALUE ? "No country" : c.name}
                       </span>
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {sortedSegments.map((seg) => {
+                {segmentsWithNone.map((seg) => {
                   const counts = perSegment.get(seg.id) ?? emptyCounts();
                   return (
                     <tr key={seg.id}>
@@ -313,7 +333,7 @@ export default function ResearchPage() {
                           href={callListHref({ hasPhone: true, priorityRole: true, segmentId: seg.id })}
                         />
                       </td>
-                      {sortedCountries.map((c) => {
+                      {countriesWithNone.map((c) => {
                         const count = crossTab.get(`${seg.id}::${c.name}`) ?? 0;
                         return (
                           <td key={c.name} className="border-b border-slate-100 p-3">
@@ -442,8 +462,8 @@ export default function ResearchPage() {
                   <tr key={c.name}>
                     <td className="whitespace-nowrap border-b border-slate-100 p-3">
                       <span className="flex items-center gap-1.5">
-                        <CountryFlag country={c.name} />
-                        {c.name}
+                        {c.id !== NO_VALUE && <CountryFlag country={c.name} />}
+                        {c.id === NO_VALUE ? "No country" : c.name}
                       </span>
                     </td>
                     <td className="border-b border-slate-100 p-3">

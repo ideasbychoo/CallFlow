@@ -30,10 +30,11 @@ export async function GET() {
           gaps_only: "'true' to only return organisations with no Segment or zero staff at all, sorted so never/longest-unchecked (by backfill_checked_at) come first",
           missing_department: "Department name (e.g. 'Impact / MERL') -- only return organisations with NO staff member in that Department, even if they have other staff/a Segment. Sorted by dept_focus_checked_at.",
           missing_phone: "'true' to only return organisations with no phone number on any office_locations row. Sorted by phone_focus_checked_at.",
+          missing_segment: "'true' to only return organisations with no Segment assigned, even if they already have staff/phone. Sorted by segment_focus_checked_at.",
           limit: "cap the number of rows returned",
         },
         notes:
-          "q / gaps_only / missing_department / missing_phone are mutually exclusive targeting modes -- use one per call. Response includes total_gaps_backlog / total_missing_department_backlog / total_missing_phone_backlog (matching whichever mode was used) alongside count.",
+          "q / gaps_only / missing_department / missing_phone / missing_segment are mutually exclusive targeting modes -- use one per call. Response includes total_gaps_backlog / total_missing_department_backlog / total_missing_phone_backlog / total_missing_segment_backlog (matching whichever mode was used) alongside count.",
         description: "List/search existing organisations, including their office_locations and staff.",
       },
       {
@@ -42,7 +43,7 @@ export async function GET() {
         auth: "required",
         body: {
           created_by: "string, required -- identifies the calling agent, e.g. 'agent:callflow-backfill-routine'",
-          mark_checked: "array of 'general' | 'dept_focus' | 'phone_focus', optional (default: ['general']) -- which checked-at timestamp(s) to bump on this organisation. General/prospecting/backfill routines can omit this. Specialized routines (Impact/MERL staff-finder, phone-number backfill) should pass their own kind so they don't deprioritise this org in a DIFFERENT routine's queue.",
+          mark_checked: "array of 'general' | 'dept_focus' | 'phone_focus' | 'segment_focus', optional (default: ['general']) -- which checked-at timestamp(s) to bump on this organisation. General/prospecting/backfill routines can omit this. Specialized routines (Impact/MERL staff-finder, phone-number backfill, Segment backfill) should pass their own kind so they don't deprioritise this org in a DIFFERENT routine's queue.",
           organisation: {
             name: "string, required -- also used to match an existing org (case-insensitive) to update instead of duplicating",
             segment: "string -- STRICT: must exactly match an existing Segment name (see reference-data); rejected with a warning otherwise, never auto-created",
@@ -97,7 +98,7 @@ export async function GET() {
         auth: "required",
         body: {
           created_by: "string, required",
-          mark_checked: "array of 'general' | 'dept_focus' | 'phone_focus', optional (default: ['general']) -- see the matching field on POST /api/ingest/organisations",
+          mark_checked: "array of 'general' | 'dept_focus' | 'phone_focus' | 'segment_focus', optional (default: ['general']) -- see the matching field on POST /api/ingest/organisations",
           organisation_id: "string (uuid) -- either this or organisation_name",
           organisation_name: "string -- matched case-insensitively",
           staff: [

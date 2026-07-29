@@ -120,6 +120,7 @@ create table organisations (
   backfill_checked_at timestamptz,
   dept_focus_checked_at timestamptz,
   phone_focus_checked_at timestamptz,
+  segment_focus_checked_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -178,6 +179,7 @@ create index idx_organisations_source on organisations(source_id);
 create index idx_organisations_backfill_checked on organisations(backfill_checked_at);
 create index idx_organisations_dept_focus_checked on organisations(dept_focus_checked_at);
 create index idx_organisations_phone_focus_checked on organisations(phone_focus_checked_at);
+create index idx_organisations_segment_focus_checked on organisations(segment_focus_checked_at);
 create index idx_office_locations_org on office_locations(organisation_id);
 create index idx_staff_org on staff(organisation_id);
 create index idx_staff_department on staff(department_id);
