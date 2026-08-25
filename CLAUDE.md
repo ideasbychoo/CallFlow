@@ -2,7 +2,9 @@
 
 # CallFlow — Project Memory
 
-Internal CRM-style sales tool for Makerble (nonprofit M&E/beneficiary-tracking platform). Used by Matt Kepple to run outbound business development against charities/NGOs in the UK, South Africa, and other English-speaking geographies. See `README.md` for pages and data model; this file covers infra, conventions, and gotchas that aren't obvious from the code.
+Internal CRM-style sales tool for Makerble (nonprofit M&E/beneficiary-tracking platform). Used by Matt Kepple to run outbound business development against charities/NGOs in the UK, South Africa, and other English-speaking geographies. See `README.md` for the full page-by-page feature overview and data model; see `docs/ingest-api.md` for the rules/conventions behind the ingest API used by the prospecting and backfill agents. This file covers infra, conventions, and gotchas that aren't obvious from the code.
+
+**Maintenance:** update `README.md` (features), this file (infra/conventions), and/or `docs/ingest-api.md` (ingest API rules) in the same push whenever you change what they describe — see the note at the top of the README.
 
 ## Infrastructure
 - **Supabase project ID:** `woioapeixdklqnkvpdih`
