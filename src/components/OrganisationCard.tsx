@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { format, formatDistanceToNow, parseISO } from "date-fns";
+import { ExternalLink } from "lucide-react";
 import { EditableText } from "./EditableField";
 import StatusDropdown from "./StatusDropdown";
 import CategoryChip from "./CategoryChip";
@@ -114,7 +115,7 @@ export default function OrganisationCard({
         organisation_id: org.id,
         department_id: departmentId,
         seniority_id: seniorityId,
-        full_name: "New person",
+        full_name: "",
       });
       onChanged();
     } catch (err) {
@@ -137,6 +138,7 @@ export default function OrganisationCard({
 
   return (
     <div
+      id={`org-card-${org.id}`}
       className="mb-4 rounded-xl border border-slate-200 bg-white shadow-sm"
       style={
         selectedCategory?.color
@@ -163,6 +165,18 @@ export default function OrganisationCard({
             >
               ⤢
             </button>
+          )}
+          {!hideFocusButton && (
+            <a
+              href={`/organisations/${org.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-1 shrink-0 text-slate-400 hover:text-slate-700"
+              title="Open this organisation's dedicated page in a new tab"
+              aria-label="Open this organisation's dedicated page in a new tab"
+            >
+              <ExternalLink size={16} />
+            </a>
           )}
 
           <div className="min-w-0 flex-1">
@@ -742,10 +756,36 @@ function StaffPersonEditor({
 
   return (
     <div className="rounded border border-slate-100 p-2">
+      <div className="flex items-start gap-2">
+        {person.image_url && (
+          <img
+            src={person.image_url}
+            alt=""
+            onError={(e) => {
+              e.currentTarget.style.display = "none";
+            }}
+            className="mt-0.5 h-10 w-10 shrink-0 rounded-full border border-slate-100 object-cover"
+          />
+        )}
+        <div className="min-w-0 flex-1">
+          <EditableText
+            value={person.full_name}
+            onSave={(v) => update({ full_name: v })}
+            className="w-full rounded border border-transparent bg-transparent text-sm font-medium text-slate-800 hover:border-slate-200 focus:border-slate-400 focus:bg-white focus:outline-none"
+          />
+          <EditableText
+            value={person.pronunciation}
+            onSave={(v) => update({ pronunciation: v })}
+            placeholder="Pronunciation (e.g. ‘suh-MAN-thuh’)"
+            className="w-full rounded border border-transparent bg-transparent text-xs italic text-slate-500 hover:border-slate-200 focus:border-slate-400 focus:bg-white focus:outline-none"
+          />
+        </div>
+      </div>
       <EditableText
-        value={person.full_name}
-        onSave={(v) => update({ full_name: v })}
-        className="w-full rounded border border-transparent bg-transparent text-sm font-medium text-slate-800 hover:border-slate-200 focus:border-slate-400 focus:bg-white focus:outline-none"
+        value={person.image_url}
+        onSave={(v) => update({ image_url: v })}
+        placeholder="Image URL (from their team-page bio)"
+        className="w-full rounded border border-transparent bg-transparent text-xs hover:border-slate-200 focus:border-slate-400 focus:bg-white focus:outline-none"
       />
       <EditableText
         value={person.job_title}

@@ -7,6 +7,7 @@ import "./globals.css";
 import AppShell from "@/components/AppShell";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 import { createClient } from "@/lib/supabase/server";
+import type { TodayHoliday } from "@/components/HolidayTicker";
 
 export const metadata: Metadata = {
   title: "CallFlow",
@@ -41,11 +42,22 @@ export default async function RootLayout({
     .select("id, name, sort_order, counts_as_call_attempt, is_call_or_chase")
     .order("sort_order", { ascending: true });
 
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const { data: todaysHolidays } = await supabase
+    .from("public_holidays")
+    .select("id, name, country:countries(name)")
+    .eq("holiday_date", todayIso);
+
   return (
     <html lang="en">
       <body className="antialiased font-sans">
         <ServiceWorkerRegister />
-        <AppShell statuses={statuses ?? []}>{children}</AppShell>
+        <AppShell
+          statuses={statuses ?? []}
+          todaysHolidays={(todaysHolidays ?? []) as unknown as TodayHoliday[]}
+        >
+          {children}
+        </AppShell>
       </body>
     </html>
   );

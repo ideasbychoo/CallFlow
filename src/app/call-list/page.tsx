@@ -272,12 +272,27 @@ function CallListInner() {
   }, [orgs, phonePresentOnly, priorityRoleOnly, departments, statusFilter, categoryFilter, segmentFilter, countryFilter, staffMin, staffMax, deptStaffFilter, search, sortField, sortDirection]);
 
   async function handleAddOrganisation() {
-    const defaultStatus = statuses.find((s) => s.sort_order === 1);
-    await createOrganisation({
-      name: "New organisation",
-      status_id: defaultStatus?.id ?? null,
-    });
-    load();
+    try {
+      const defaultStatus = statuses.find((s) => s.sort_order === 1);
+      const newId = await createOrganisation({
+        name: "New organisation",
+        status_id: defaultStatus?.id ?? null,
+      });
+      // A brand-new organisation always has 0 staff and no phone number, so
+      // the page's own default filters would otherwise hide it immediately
+      // after creating it -- relax them so it's guaranteed to be visible.
+      setPhonePresentOnly(false);
+      setStaffMin("");
+      await load();
+      requestAnimationFrame(() => {
+        document
+          .getElementById(`org-card-${newId}`)
+          ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+    } catch (err) {
+      console.error(err);
+      alert("Couldn't add the new organisation. Please try again.");
+    }
   }
 
   const activeStatusNames = statusFilter

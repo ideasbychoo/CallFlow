@@ -4,13 +4,16 @@ import { usePathname } from "next/navigation";
 import { Suspense, useState } from "react";
 import { Menu } from "lucide-react";
 import Sidebar from "./Sidebar";
+import HolidayTicker, { type TodayHoliday } from "./HolidayTicker";
 import type { Status } from "@/types";
 
 export default function AppShell({
   statuses,
+  todaysHolidays = [],
   children,
 }: {
   statuses: Status[];
+  todaysHolidays?: TodayHoliday[];
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -34,6 +37,8 @@ export default function AppShell({
         <span className="text-lg font-bold tracking-tight text-slate-900">CallFlow</span>
         <span className="w-6" aria-hidden="true" />
       </div>
+
+      <HolidayTicker holidays={todaysHolidays} />
 
       <div className="flex min-h-0 min-w-0 flex-1">
         <Suspense fallback={<div className="w-64 shrink-0 max-md:hidden" />}>
