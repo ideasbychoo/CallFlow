@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import SettingsList from "@/components/SettingsList";
 import MultiSelectFilter from "@/components/MultiSelectFilter";
+import { EditableText } from "@/components/EditableField";
 import {
   fetchSettingsLists,
   setStatusCountsAsCallAttempt,
@@ -13,8 +14,22 @@ import {
   renameReportGroup,
   setReportGroupStatuses,
   deleteReportGroup,
+  fetchPublicHolidays,
+  createPublicHoliday,
+  updatePublicHoliday,
+  deletePublicHoliday,
 } from "@/lib/data";
-import type { Status, Department, SeniorityLevel, Category, Country, SourceType, Segment, ReportGroup } from "@/types";
+import type {
+  Status,
+  Department,
+  SeniorityLevel,
+  Category,
+  Country,
+  SourceType,
+  Segment,
+  ReportGroup,
+  PublicHoliday,
+} from "@/types";
 
 export default function SettingsPage() {
   const [statuses, setStatuses] = useState<Status[]>([]);
@@ -25,6 +40,10 @@ export default function SettingsPage() {
   const [sourceTypes, setSourceTypes] = useState<SourceType[]>([]);
   const [segments, setSegments] = useState<Segment[]>([]);
   const [reportGroups, setReportGroups] = useState<ReportGroup[]>([]);
+  const [publicHolidays, setPublicHolidays] = useState<PublicHoliday[]>([]);
+  const [newHolidayCountryId, setNewHolidayCountryId] = useState("");
+  const [newHolidayName, setNewHolidayName] = useState("");
+  const [newHolidayDate, setNewHolidayDate] = useState("");
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [testing, setTesting] = useState(false);
@@ -50,7 +69,10 @@ export default function SettingsPage() {
   async function load() {
     setLoadError(null);
     try {
-      const settings = await fetchSettingsLists();
+      const [settings, holidays] = await Promise.all([
+        fetchSettingsLists(),
+        fetchPublicHolidays(),
+      ]);
       setStatuses(settings.statuses);
       setDepartments(settings.departments);
       setSeniorityLevels(settings.seniorityLevels);
@@ -59,6 +81,7 @@ export default function SettingsPage() {
       setSourceTypes(settings.sourceTypes);
       setSegments(settings.segments);
       setReportGroups(settings.reportGroups);
+      setPublicHolidays(holidays);
     } catch (err) {
       console.error(err);
       setLoadError(err instanceof Error ? err.message : "Failed to load data.");
@@ -79,8 +102,31 @@ export default function SettingsPage() {
     [statuses]
   );
 
+  const sortedCountries = useMemo(
+    () => [...countries].sort((a, b) => a.name.localeCompare(b.name)),
+    [countries]
+  );
+
+  const sortedHolidays = useMemo(
+    () =>
+      [...publicHolidays].sort((a, b) => a.holiday_date.localeCompare(b.holiday_date)),
+    [publicHolidays]
+  );
+
   async function handleAddReportGroup() {
     await createReportGroup("New group", []);
+    load();
+  }
+
+  async function handleAddHoliday() {
+    if (!newHolidayCountryId || !newHolidayName.trim() || !newHolidayDate) return;
+    await createPublicHoliday({
+      country_id: newHolidayCountryId,
+      name: newHolidayName.trim(),
+      holiday_date: newHolidayDate,
+    });
+    setNewHolidayName("");
+    setNewHolidayDate("");
     load();
   }
 
@@ -282,6 +328,96 @@ export default function SettingsPage() {
         onChanged={load}
         sortAlphabetically
       />
+
+      <div className="mb-8">
+        <h2 className="mb-2 text-lg font-semibold text-slate-800">
+          Public Holidays ({publicHolidays.length})
+        </h2>
+        <p className="mb-2 text-xs text-slate-500">
+          Add national holidays for a Country so CallFlow can warn you before you spend time
+          calling an organisation that&rsquo;s likely closed that day.
+        </p>
+        <div className="divide-y divide-slate-100 rounded border border-slate-200 bg-white">
+          {sortedHolidays.map((holiday) => {
+            const country = countries.find((c) => c.id === holiday.country_id);
+            return (
+              <div key={holiday.id} className="flex items-center gap-2 px-3 py-2">
+                <select
+                  value={holiday.country_id}
+                  onChange={(e) =>
+                    updatePublicHoliday(holiday.id, { country_id: e.target.value }).then(load)
+                  }
+                  className="w-40 shrink-0 rounded border border-transparent bg-transparent text-sm text-slate-800 hover:border-slate-200 focus:border-slate-400 focus:outline-none"
+                >
+                  {sortedCountries.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                  {!country && <option value={holiday.country_id}>Unknown country</option>}
+                </select>
+                <EditableText
+                  value={holiday.name}
+                  onSave={(v) => updatePublicHoliday(holiday.id, { name: v }).then(load)}
+                  className="flex-1 rounded border border-transparent bg-transparent text-sm text-slate-800 hover:border-slate-200 focus:border-slate-400 focus:bg-white focus:outline-none"
+                />
+                <input
+                  type="date"
+                  value={holiday.holiday_date}
+                  onChange={(e) =>
+                    updatePublicHoliday(holiday.id, { holiday_date: e.target.value }).then(load)
+                  }
+                  className="shrink-0 rounded border border-transparent bg-transparent text-sm text-slate-600 hover:border-slate-200 focus:border-slate-400 focus:outline-none"
+                />
+                <button
+                  onClick={() => {
+                    if (confirm(`Remove "${holiday.name}"?`)) {
+                      deletePublicHoliday(holiday.id).then(load);
+                    }
+                  }}
+                  className="text-xs text-slate-300 hover:text-red-500"
+                >
+                  ✕
+                </button>
+              </div>
+            );
+          })}
+          {sortedHolidays.length === 0 && (
+            <p className="px-3 py-2 text-sm text-slate-400">No public holidays added yet.</p>
+          )}
+        </div>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <select
+            value={newHolidayCountryId}
+            onChange={(e) => setNewHolidayCountryId(e.target.value)}
+            className="rounded border border-slate-300 px-2 py-1 text-sm text-slate-800 focus:border-slate-500 focus:outline-none"
+          >
+            <option value="">Country…</option>
+            {sortedCountries.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+          <input
+            type="text"
+            value={newHolidayName}
+            onChange={(e) => setNewHolidayName(e.target.value)}
+            placeholder="Holiday name"
+            className="rounded border border-slate-300 px-2 py-1 text-sm text-slate-800 focus:border-slate-500 focus:outline-none"
+          />
+          <input
+            type="date"
+            value={newHolidayDate}
+            onChange={(e) => setNewHolidayDate(e.target.value)}
+            className="rounded border border-slate-300 px-2 py-1 text-sm text-slate-800 focus:border-slate-500 focus:outline-none"
+          />
+          <button
+            onClick={handleAddHoliday}
+            disabled={!newHolidayCountryId || !newHolidayName.trim() || !newHolidayDate}
+            className="rounded bg-slate-800 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+          >
+            + Add holiday
+          </button>
+        </div>
+      </div>
+
       <SettingsList
         title="Segments"
         table="segments"

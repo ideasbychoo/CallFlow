@@ -141,6 +141,8 @@ create table staff (
   department_id uuid references departments(id) on delete set null,
   seniority_id uuid references seniority_levels(id) on delete set null,
   full_name text not null,
+  pronunciation text,
+  image_url text,
   job_title text,
   email text,
   direct_dial text,
@@ -153,6 +155,16 @@ create table staff (
   created_by text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
+);
+
+-- One or more national public holidays per Country, used to warn against
+-- calling an organisation on a day it's likely to be closed.
+create table public_holidays (
+  id uuid primary key default gen_random_uuid(),
+  country_id uuid not null references countries(id) on delete cascade,
+  name text not null,
+  holiday_date date not null,
+  created_at timestamptz not null default now()
 );
 
 create table status_history (
@@ -310,6 +322,7 @@ alter table office_locations enable row level security;
 alter table staff enable row level security;
 alter table status_history enable row level security;
 alter table email_templates enable row level security;
+alter table public_holidays enable row level security;
 
 create policy "Authenticated users can do everything - statuses" on statuses
   for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
@@ -342,6 +355,8 @@ create policy "Authenticated users can do everything - staff" on staff
 create policy "Authenticated users can do everything - status_history" on status_history
   for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 create policy "Authenticated users can do everything - email_templates" on email_templates
+  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "Authenticated users can do everything - public_holidays" on public_holidays
   for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 
 -- ============ TRIGGER: auto-update updated_at ============

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
+import { ExternalLink } from "lucide-react";
 import { EditableText } from "@/components/EditableField";
 import MultiSelectFilter from "@/components/MultiSelectFilter";
 import DepartmentStaffFilter, {
@@ -124,9 +125,22 @@ export default function OrganisationsPage() {
   }
 
   async function handleAdd() {
-    const defaultStatus = statuses.find((s) => s.sort_order === 1);
-    await createOrganisation({ name: "New organisation", status_id: defaultStatus?.id ?? null });
-    load();
+    try {
+      const defaultStatus = statuses.find((s) => s.sort_order === 1);
+      const newId = await createOrganisation({
+        name: "New organisation",
+        status_id: defaultStatus?.id ?? null,
+      });
+      await load();
+      requestAnimationFrame(() => {
+        const row = document.getElementById(`org-row-${newId}`);
+        row?.scrollIntoView({ behavior: "smooth", block: "center" });
+        row?.querySelector("input")?.focus();
+      });
+    } catch (err) {
+      console.error(err);
+      alert("Couldn't add the new organisation. Please try again.");
+    }
   }
 
   const cellClass =
@@ -190,9 +204,9 @@ export default function OrganisationsPage() {
                   "Source Type", "Source",
                   "Date spotted", "Website", "Team page", "Annual report", "Impact report",
                   "Org LinkedIn", "Beneficiaries", "Workers", "Notes",
-                  "Staff", "Call attempts", "Recent interaction", "Added by", "",
-                ].map((h) => (
-                  <th key={h} className="whitespace-nowrap border-b border-slate-200 px-2 py-2 font-medium">
+                  "Staff", "Call attempts", "Recent interaction", "Added by", "", "",
+                ].map((h, i) => (
+                  <th key={`${h}-${i}`} className="whitespace-nowrap border-b border-slate-200 px-2 py-2 font-medium">
                     {h}
                   </th>
                 ))}
@@ -200,7 +214,7 @@ export default function OrganisationsPage() {
             </thead>
             <tbody>
               {filtered.map((org) => (
-                <tr key={org.id} className="border-b border-slate-100 align-top hover:bg-slate-50">
+                <tr id={`org-row-${org.id}`} key={org.id} className="border-b border-slate-100 align-top hover:bg-slate-50">
                   <td className="min-w-[180px] px-2 py-1">
                     <EditableText value={org.name} onSave={(v) => save(org.id, { name: v })} className={cellClass + " font-medium"} />
                   </td>
@@ -329,6 +343,18 @@ export default function OrganisationsPage() {
                   </td>
                   <td className="min-w-[160px] whitespace-nowrap px-2 py-1 text-slate-400">
                     {org.created_by ?? "—"}
+                  </td>
+                  <td className="px-2 py-1">
+                    <a
+                      href={`/organisations/${org.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-slate-400 hover:text-slate-700"
+                      title="Open this organisation's dedicated page in a new tab"
+                      aria-label="Open this organisation's dedicated page in a new tab"
+                    >
+                      <ExternalLink size={14} />
+                    </a>
                   </td>
                   <td className="px-2 py-1">
                     <button

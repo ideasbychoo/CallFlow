@@ -13,6 +13,7 @@ import type {
   StaffMember,
   EmailTemplate,
   ResearchOrgFlag,
+  PublicHoliday,
 } from "@/types";
 
 const ORG_SELECT = `
@@ -40,6 +41,17 @@ export async function fetchOrganisations(): Promise<Organisation[]> {
 
   if (error) throw error;
   return (data ?? []) as unknown as Organisation[];
+}
+
+export async function fetchOrganisationById(id: string): Promise<Organisation | null> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("organisations")
+    .select(ORG_SELECT)
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw error;
+  return data as unknown as Organisation | null;
 }
 
 export async function fetchSettingsLists(): Promise<{
@@ -290,6 +302,48 @@ export async function setLookupOfficial(
 ) {
   const supabase = createClient();
   const { error } = await supabase.from(table).update({ is_official: value }).eq("id", id);
+  if (error) throw error;
+}
+
+// ============ Public Holidays ============
+
+export async function fetchPublicHolidays(): Promise<PublicHoliday[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("public_holidays")
+    .select("*")
+    .order("holiday_date");
+  if (error) throw error;
+  return (data ?? []) as PublicHoliday[];
+}
+
+export async function createPublicHoliday(fields: {
+  country_id: string;
+  name: string;
+  holiday_date: string;
+}): Promise<string> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("public_holidays")
+    .insert(fields)
+    .select("id")
+    .single();
+  if (error) throw error;
+  return data.id as string;
+}
+
+export async function updatePublicHoliday(
+  id: string,
+  fields: Partial<Pick<PublicHoliday, "country_id" | "name" | "holiday_date">>
+) {
+  const supabase = createClient();
+  const { error } = await supabase.from("public_holidays").update(fields).eq("id", id);
+  if (error) throw error;
+}
+
+export async function deletePublicHoliday(id: string) {
+  const supabase = createClient();
+  const { error } = await supabase.from("public_holidays").delete().eq("id", id);
   if (error) throw error;
 }
 

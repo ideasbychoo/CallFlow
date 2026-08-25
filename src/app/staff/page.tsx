@@ -109,7 +109,8 @@ export default function StaffPage() {
           <h1 className="text-3xl font-semibold text-slate-800">Staff</h1>
           <button
             onClick={handleAdd}
-            className="rounded bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
+            disabled={loading}
+            className="rounded bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
           >
             + Add person
           </button>
@@ -141,7 +142,7 @@ export default function StaffPage() {
             <thead className="sticky top-0 z-[5] bg-slate-100 text-left text-slate-600">
               <tr>
                 {[
-                  "Organisation", "Full name", "Job title", "Department", "Seniority",
+                  "Organisation", "Full name", "Pronunciation", "Photo", "Job title", "Department", "Seniority",
                   "Email", "Direct dial", "LinkedIn", "Background notes",
                   "Bio", "Bio URL",
                   "Availability notes", "Conversation notes", "",
@@ -168,6 +169,24 @@ export default function StaffPage() {
                   </td>
                   <td className="min-w-[160px] px-2 py-1">
                     <EditableText value={person.full_name} onSave={(v) => save(person.id, { full_name: v })} className={cellClass + " font-medium"} />
+                  </td>
+                  <td className="min-w-[140px] px-2 py-1">
+                    <EditableText value={person.pronunciation} onSave={(v) => save(person.id, { pronunciation: v })} placeholder="e.g. suh-MAN-thuh" className={cellClass} />
+                  </td>
+                  <td className="min-w-[140px] px-2 py-1">
+                    <div className="flex items-center gap-1.5">
+                      {person.image_url && (
+                        <img
+                          src={person.image_url}
+                          alt=""
+                          onError={(e) => {
+                            e.currentTarget.style.display = "none";
+                          }}
+                          className="h-6 w-6 shrink-0 rounded-full border border-slate-100 object-cover"
+                        />
+                      )}
+                      <EditableText value={person.image_url} onSave={(v) => save(person.id, { image_url: v })} placeholder="Image URL" className={cellClass} />
+                    </div>
                   </td>
                   <td className="min-w-[180px] px-2 py-1">
                     <EditableText value={person.job_title} onSave={(v) => save(person.id, { job_title: v })} className={cellClass} />

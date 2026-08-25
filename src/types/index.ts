@@ -48,6 +48,13 @@ export type Country = {
   sort_order: number;
 };
 
+export type PublicHoliday = {
+  id: string;
+  country_id: string;
+  name: string;
+  holiday_date: string;
+};
+
 export type EmailTemplate = {
   id: string;
   title: string;
@@ -86,6 +93,8 @@ export type StaffMember = {
   department_id: string | null;
   seniority_id: string | null;
   full_name: string;
+  pronunciation: string | null;
+  image_url: string | null;
   job_title: string | null;
   email: string | null;
   direct_dial: string | null;
